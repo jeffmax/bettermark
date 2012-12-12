@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Bookmark2.0</title>
+    <style>
+      body {
+        min-width:357px;
+        overflow-x:hidden;
+        font-family: sans-serif;
+        font-size: 14px;
+      }
+      label {
+        font-size: 12px;
+        padding-left: 3px;
+      }
+      #title {
+        padding-bottom: 2px;
+        margin-bottom: 0px;
+      }
+    </style>
+
+    <!-- JavaScript and HTML must be in separate files for security. -->
+    <script src="popup.js"></script>
+  </head>
+  <body>
+    <p id="title">Bookmark</p>
+    <label for="bookmark_name">Name:</label> <input type="text" name="bookmark_name"/><br>
+    <label for="bookmark_folder">Folder:</label> <select type="select" name="bookmark_folder"></select><br>
+    <button>Remove</button>
+    <button style="float:right;">Done</button>
+    <button style="float:right;">Edit...</button>
+  </body>
+</html>
