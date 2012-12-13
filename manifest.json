@@ -9,5 +9,9 @@
   },
   "permissions": [
     "tabs", "http://*/*", "bookmarks"
-  ]
+  ],
+  "background": {
+      "scripts": ["eventPage.js"],
+      "persistent": false
+  }
 }
