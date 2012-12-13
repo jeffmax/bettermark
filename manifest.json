@@ -7,10 +7,6 @@
     "default_icon": "icon.png",
     "default_popup": "popup.html"
   },
-  "background": {
-    "scripts": ["eventPage.js"],
-    "persistent": false
-  },
   "permissions": [
     "tabs", "http://*/*", "bookmarks"
   ]
