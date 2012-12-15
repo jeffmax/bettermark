@@ -1,17 +1,27 @@
 chrome.extension.onMessage.addListener(
     function(request, sender, sendResponse) {
-       console.log(request);
-       console.log(sender);
        getOtherBookmarksChildren(function(other, otherID){
            if (other == null) {
                console.error("'Other Bookmarks' not found."); 
                return;
            }
            var folders = retrieveFolders(other, otherID);
-           var folder = determineBestFolder(request, folders);
-           getUncategorizedFolder(other, otherID, function(uncategorized){
-              console.log(uncategorized);
-           });
+           var folder = determineBestFolder(sender.tab, request, folders);
+           if (folder == null){
+               // Find the uncategorized folder and create bookmark there
+               getUncategorizedFolder(other, otherID, function(uncategorized){
+                   chrome.bookmarks.create({'parentId': uncategorized.id,
+                         'title': sender.tab.title,
+                         'url': sender.tab.url});
+                   folder = uncategorized;
+               });
+           }else{
+               chrome.bookmarks.create({'parentId': folder.id,
+                  'title': sender.tab.title,
+                  'url': sender.tab.url});
+           }
+           // At this point folder will be the folder containing the bookmark
+           populateInterface(folder, folders, sender.tab);
        });
 });
 
@@ -50,6 +60,11 @@ function getUncategorizedFolder(folders, otherID, callback){
             callback(uncategorizedFolder); 
         }
     );
+}
+
+function populateInterface(folder, otherFolders, page){
+
+
 }
 
 function determineBestFolder(page, folders){
