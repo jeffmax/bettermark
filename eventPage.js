@@ -1,28 +1,45 @@
 chrome.extension.onMessage.addListener(
     function(request, sender, sendResponse) {
-       getOtherBookmarksChildren(function(other, otherID){
-           if (other == null) {
-               console.error("'Other Bookmarks' not found."); 
-               return;
-           }
-           var folders = retrieveFolders(other, otherID);
-           var folder = determineBestFolder(sender.tab, request, folders);
-           if (folder == null){
-               // Find the uncategorized folder and create bookmark there
-               getUncategorizedFolder(other, otherID, function(uncategorized){
-                   chrome.bookmarks.create({'parentId': uncategorized.id,
-                         'title': sender.tab.title,
-                         'url': sender.tab.url});
-                   folder = uncategorized;
-               });
-           }else{
-               chrome.bookmarks.create({'parentId': folder.id,
-                  'title': sender.tab.title,
-                  'url': sender.tab.url});
-           }
-           // At this point folder will be the folder containing the bookmark
-           populateInterface(folder, folders, sender.tab);
-       });
+      getOtherBookmarksChildren(function(other, otherID){
+          if (other == null) {
+              console.error("'Other Bookmarks' not found."); 
+              return;
+          }
+          var folders = retrieveFolders(other, otherID);
+          var alreadyBookmarked = false;
+          chrome.bookmarks.search(sender.tab.url, function(results){
+              var bookmarkFolderID = null;
+              results.forEach(function(bookmark){
+                 if (bookmark.url == sender.tab.url){
+                   alreadyBookmarked = true; 
+                   bookmarkFolderID = bookmark.parentId;
+                   return false;
+                 }
+              });
+              if (alreadyBookmarked){
+                  chrome.bookmarks.get(bookmarkFolderID, function(folder){
+                     poplateInterface(bookmarkedFolder, folders, sender.tab); 
+                  });
+                  return;
+              }
+              var folder = determineBestFolder(sender.tab, request, folders);
+              if (folder == null){
+                  // Find the uncategorized folder and create bookmark there
+                  getUncategorizedFolder(other, otherID, function(uncategorized){
+                      chrome.bookmarks.create({'parentId': uncategorized.id,
+                            'title': sender.tab.title,
+                            'url': sender.tab.url});
+                      folder = uncategorized;
+                  });
+              }else{
+                  chrome.bookmarks.create({'parentId': folder.id,
+                     'title': sender.tab.title,
+                     'url': sender.tab.url});
+              }
+              // At this point folder will be the folder containing the bookmark
+              populateInterface(folder, folders, sender.tab);
+          });
+     });
 });
 
 function getOtherBookmarksChildren(callback) {
