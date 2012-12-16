@@ -63,8 +63,9 @@ function getUncategorizedFolder(folders, otherID, callback){
 }
 
 function populateInterface(folder, otherFolders, page){
-
-
+    var views = chrome.extension.getViews({type:"popup"});
+    var title_input = views[0].document.getElementById("bookmark_title");
+    title_input.value = page.title;
 }
 
 function determineBestFolder(page, folders){
