@@ -17,8 +17,8 @@ chrome.extension.onMessage.addListener(
                  }
               });
               if (alreadyBookmarked){
-                  chrome.bookmarks.get(bookmarkFolderID, function(folder){
-                     poplateInterface(bookmarkedFolder, folders, sender.tab); 
+                  chrome.bookmarks.get(bookmarkFolderID, function(bookmarkFolder){
+                     populateInterface(bookmarkFolder[0], folders, sender.tab); 
                   });
                   return;
               }
@@ -82,7 +82,13 @@ function getUncategorizedFolder(folders, otherID, callback){
 function populateInterface(folder, otherFolders, page){
     var views = chrome.extension.getViews({type:"popup"});
     var title_input = views[0].document.getElementById("bookmark_title");
+    var folder_input =  views[0].document.getElementById("bookmark_folders");
     title_input.value = page.title;
+    otherFolders.forEach(function(currentFolder){
+        var newOption = new Option(currentFolder.title, " ");
+        newOption.selected = folder.id == currentFolder.id;
+        folder_input.add(newOption, null);
+    });
 }
 
 function determineBestFolder(page, folders){
