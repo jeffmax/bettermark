@@ -91,6 +91,14 @@ function populateInterface(folder, otherFolders, page){
     });
 }
 
-function determineBestFolder(page, folders){
-
+// For now just look for folder name in page title
+function determineBestFolder(page, meta, folders){
+    var folder = null;
+    folders.forEach(function(currentFolder){
+        if (page.title.toLowerCase().indexOf(currentFolder.title.toLowerCase()) != -1){
+           folder = currentFolder;
+           return false;
+        }
+    });
+    return folder;
 }
