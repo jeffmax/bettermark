@@ -30,14 +30,15 @@ chrome.extension.onMessage.addListener(
                             'title': sender.tab.title,
                             'url': sender.tab.url});
                       folder = uncategorized;
+                      populateInterface(folder, folders, sender.tab);
                   });
               }else{
                   chrome.bookmarks.create({'parentId': folder.id,
                      'title': sender.tab.title,
                      'url': sender.tab.url});
+                  populateInterface(folder, folders, sender.tab);
               }
               // At this point folder will be the folder containing the bookmark
-              populateInterface(folder, folders, sender.tab);
           });
      });
 });
@@ -86,7 +87,7 @@ function populateInterface(folder, otherFolders, page){
     title_input.value = page.title;
     otherFolders.forEach(function(currentFolder){
         var newOption = new Option(currentFolder.title, " ");
-        newOption.selected = folder.id == currentFolder.id;
+        newOption.selected = (folder.id == currentFolder.id);
         folder_input.add(newOption, null);
     });
 }
@@ -95,7 +96,8 @@ function populateInterface(folder, otherFolders, page){
 function determineBestFolder(page, meta, folders){
     var folder = null;
     folders.forEach(function(currentFolder){
-        if (page.title.toLowerCase().indexOf(currentFolder.title.toLowerCase()) != -1){
+        var regex = new RegExp("\\b"+currentFolder.title+"\\b","i");
+        if (regex.test(page.title)){
            folder = currentFolder;
            return false;
         }
