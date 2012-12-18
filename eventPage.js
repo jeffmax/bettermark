@@ -7,19 +7,19 @@ chrome.extension.onMessage.addListener(
           }
           var folders = retrieveFolders(other, otherID);
           var alreadyBookmarked = false;
+          var bookmarkID = null;
+          var bookmarkFolderID = null;
           chrome.bookmarks.search(sender.tab.url, function(results){
-              var bookmarkFolderID = null;
               results.forEach(function(bookmark){
                  if (bookmark.url == sender.tab.url){
                    alreadyBookmarked = true; 
                    bookmarkFolderID = bookmark.parentId;
+                   bookmarkID = bookmark.id;
                    return false;
                  }
               });
               if (alreadyBookmarked){
-                  chrome.bookmarks.get(bookmarkFolderID, function(bookmarkFolder){
-                     populateInterface(bookmarkFolder[0], folders, sender.tab); 
-                  });
+                     populateInterface(bookmarkFolderID, folders, sender.tab, bookmarkID);
                   return;
               }
               var folder = determineBestFolder(sender.tab, request, folders);
@@ -27,16 +27,17 @@ chrome.extension.onMessage.addListener(
                   // Find the uncategorized folder and create bookmark there
                   getUncategorizedFolder(other, otherID, function(uncategorized){
                       chrome.bookmarks.create({'parentId': uncategorized.id,
-                            'title': sender.tab.title,
-                            'url': sender.tab.url});
-                      folder = uncategorized;
-                      populateInterface(folder, folders, sender.tab);
+                            'title': sender.tab.title || "No title",
+                            'url': sender.tab.url}, function(bookmark) {
+                         populateInterface(uncategorized.id, folders, sender.tab, bookmark.id);
+                      });
                   });
               }else{
                   chrome.bookmarks.create({'parentId': folder.id,
                      'title': sender.tab.title,
-                     'url': sender.tab.url});
-                  populateInterface(folder, folders, sender.tab);
+                     'url': sender.tab.url}, function(bookmark) {
+                     populateInterface(folder.id, folders, sender.tab, bookmark.id);
+                  });
               }
               // At this point folder will be the folder containing the bookmark
           });
@@ -80,15 +81,27 @@ function getUncategorizedFolder(folders, otherID, callback){
     );
 }
 
-function populateInterface(folder, otherFolders, page){
+function populateInterface(folderID, otherFolders, page, bookmarkID){
     var views = chrome.extension.getViews({type:"popup"});
-    var title_input = views[0].document.getElementById("bookmark_title");
-    var folder_input =  views[0].document.getElementById("bookmark_folders");
+    var pop_doc = views[0].document;
+    var title_input = pop_doc.getElementById("bookmark_title");
+    var folder_input =  pop_doc.getElementById("bookmark_folders");
     title_input.value = page.title;
-    otherFolders.forEach(function(currentFolder){
-        var newOption = new Option(currentFolder.title, " ");
-        newOption.selected = (folder.id == currentFolder.id);
-        folder_input.add(newOption, null);
+    chrome.bookmarks.getRecent(1, function(bookmarks){
+        if (bookmarks.length > 0)
+            id = bookmarks[0].parentId
+        else
+            id = null
+        otherFolders.forEach(function(currentFolder){
+            var newOption = new Option(currentFolder.title, currentFolder.id);
+            newOption.selected = (folderID == currentFolder.id);
+            if (currentFolder.id == id) newOption.className = "last";
+            folder_input.add(newOption, null);
+        });
+        pop_doc.getElementById("remove").addEventListener("click", function(){
+            chrome.bookmarks.remove(bookmarkID);
+            window.close();
+        }, false);
     });
 }
 
