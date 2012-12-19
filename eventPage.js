@@ -92,9 +92,12 @@ function populateInterface(folderID, otherFolders, bookmark){
         chrome.bookmarks.update(bookmark.id, {title: title_input.value}, function(){});
     });
     
-    chrome.bookmarks.getRecent(1, function(bookmarks){
+    chrome.bookmarks.getRecent(2, function(bookmarks){
         if (bookmarks.length > 0)
-            id = bookmarks[0].parentId
+            if ((bookmarks[0].url === bookmark.url) && (bookmarks.length > 1))
+                id = bookmarks[1].parentId
+            else
+                id = bookmarks[0].parentId
         else
             id = null
         var cache_option;
