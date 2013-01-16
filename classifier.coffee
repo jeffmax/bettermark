@@ -5,7 +5,14 @@ class Classifier
         else
            @feature_count = {}
            @klass_count = {}
+
+     # Assumes document is a string
      get_features:(document) ->
+         document = document.toLowerCase()
+         document = document.replace(/[\.,-\/#!$%\^&\*;:{}=\-_`~()]/g," ")
+         features = document.split(" ")
+         stemmed = (stemmer(feature) for feature in features)
+         return stemmed
 
      train:(document, klass) ->
          # Update number of times this feature has been classified as klass
@@ -13,7 +20,7 @@ class Classifier
          for feature in features
             record = @feature_count[feature] || {}
             record[klass] = if klass of record then record[klass]+1 else 0
-            @feature_count[feature]=record 
+            @feature_count[feature] = record 
          # Update number of documents in this klass
          @klass_count[klass] = if klass of @klass_count then @klass_count[klass]+1 else 0
 
@@ -21,7 +28,6 @@ class Classifier
      fc_probability:(feature, klass) ->
          if not klass of @klass_count
              return 0
-
          # What would dividing by the total occurrences of that feature give you?
          return @feature_count[feature][klass] / @klass_count[klass]
 
