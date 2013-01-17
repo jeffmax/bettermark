@@ -10,6 +10,7 @@ class Classifier
      get_features:(document) ->
          document = document.toLowerCase()
          document = document.replace(/[\.,-\/#!$%\^&\*;:{}=\-_`~()]/g," ")
+         # remove common words here
          features = document.split(" ")
          stemmed = (stemmer(feature) for feature in features)
          return stemmed
