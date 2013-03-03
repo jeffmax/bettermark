@@ -37,6 +37,18 @@ class Classifier
          # Update number of documents in this klass
          @klass_count[klass] = if klass of @klass_count then @klass_count[klass]+1 else 1
 
+     class_count: (klass)->
+         if klass of @klass_count
+             @klass_count[klass]
+         else
+             0
+
+    total_count: ->
+        total = 0
+        for klass, count of @klass_count
+            total += count
+        total
+
      # The probability a feature is in a particular class or category
      fc_probability:(feature, klass) ->
          if not klass of @klass_count
