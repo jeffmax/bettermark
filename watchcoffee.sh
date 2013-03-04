@@ -1,2 +1,2 @@
-coffee -wc -o ./ classifier/*.coffee
+coffee --bare -wc -o ./ classifier/*.coffee
 

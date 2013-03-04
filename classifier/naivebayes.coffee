@@ -1,4 +1,4 @@
-class NaiveBayesClassifier extends Classifer
+class NaiveBayesClassifier extends Classifier
 
     constructor:(@threshold=0.0, @default = "Uncategorized") ->
         super()
