@@ -37,13 +37,13 @@ class Classifier
          # Update number of documents in this klass
          @klass_count[klass] = if klass of @klass_count then @klass_count[klass]+1 else 1
 
-     class_count: (klass)->
+     documents_in_class_count: (klass)->
          if klass of @klass_count
              @klass_count[klass]
          else
              0
 
-    total_count: ->
+     total_documents_count: ->
         total = 0
         for klass, count of @klass_count
             total += count
