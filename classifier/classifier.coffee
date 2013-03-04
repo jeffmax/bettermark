@@ -20,7 +20,9 @@ class Classifier
          dokument = dokument.replace(@stop_words, "")
          # remove punctuation
          dokument = dokument.replace(/[\.,-\/#!$%\^&\*;:{}=\-_`~()]/g," ")
-
+         # remove leading, trailing and consecutive spaces
+         dokument = dokument.replace(/^\s+|\s+$/g,'')
+         dokument = dokument.replace(/[ ]+/g," ")
          # TODO, might want to split on boundary
 
          features = dokument.split(" ")
@@ -52,9 +54,11 @@ class Classifier
      # The probability a feature is in a particular class or category
      fc_probability:(feature, klass) ->
          if not klass of @klass_count
-             return 0
+             return 0.0
          # What would dividing by the total occurrences of that feature give you?
-         return @feature_count[feature][klass] / @klass_count[klass]
+         if feature of @feature_count and klass of @feature_count[feature]
+            return @feature_count[feature][klass] / @klass_count[klass]
+         return 0.0
 
 
      weighted_probability:(feature, klass, ap = 0.5, ap_weight = 1.0) ->
