@@ -26,8 +26,11 @@ class Classifier
          # TODO, might want to split on boundary
 
          features = dokument.split(" ")
-         stemmed = (stemmer(feature) for feature in features)
-         return stemmed
+         # make sure we only return on instance of the feature 
+         # per documnet
+         unique = {}
+         unique[stemmer(feature)] = 1 for feature in features
+         key for key, value of unique
 
      train:(document, klass) ->
          # Update number of times this feature has been classified as klass
@@ -52,24 +55,24 @@ class Classifier
         total
 
      # The probability a feature is in a particular class or category
-     fc_probability:(feature, klass) ->
+     feature_probability:(feature, klass) ->
          if not klass of @klass_count
              return 0.0
          # What would dividing by the total occurrences of that feature give you?
+         # I don't think this does anything, it needs to be the total number of times
+         # you see a given word in a klass divided by the total number of times you saw
+         # word total. As is, you could get a probability over 1.
          if feature of @feature_count and klass of @feature_count[feature]
             return @feature_count[feature][klass] / @klass_count[klass]
          return 0.0
 
 
      weighted_probability:(feature, klass, ap = 0.5, ap_weight = 1.0) ->
-         prob = @fc_probability(feature, klass)
+         prob = @feature_probability(feature, klass)
          total_count = 0
-         if feature of @feature_count and klass of @feature_count[feature]
-             total_count =  @feature_count[feature][klass]
-         #Note in PCI it said to use the total number of times this feature appears
-         #in klass, but this did not make sense to me, it should be the number of times
-         #the feature appeared in the klass for which we are trying to calculate a 
-         #probability
+         if feature of @feature_count
+             for klass of @feature_count[feature]
+                 total_count +=  @feature_count[feature][klass]
          weighted = ((ap_weight * ap)+(total_count*prob))/(ap_weight+total_count)
          return weighted
 

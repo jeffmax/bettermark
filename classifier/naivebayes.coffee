@@ -1,12 +1,12 @@
 class NaiveBayesClassifier extends Classifier
 
-    constructor:(@threshold=0.0, @default = "Uncategorized") ->
+    constructor:(threshold=0.1, @default = "Uncategorized") ->
         super()
+        @threshold = Math.log(threshold)
 
     #Using log in the two functions below to avoid underflow
     prob_document_given_category: (dokument, klass)->
        features = @get_features(dokument)
-       debugger
        prob = 0
        for feature in features
            prob += Math.log(@weighted_probability(feature, klass))
@@ -18,8 +18,9 @@ class NaiveBayesClassifier extends Classifier
         doc_prob + category_prob
 
     classify: (dokument) ->
+       log_threshold = Math.log(@threshold)
        probabilities = {}
-       best_score = 0.0
+       best_score = @threshold
        best_klass
        for klass of @klass_count
            probabilities[klass] = @prob_category_given_document(dokument, klass)
