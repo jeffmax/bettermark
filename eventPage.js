@@ -22,24 +22,26 @@ chrome.extension.onMessage.addListener(
                      populateInterface(bookmarkFolderID, folders, bookmark);
                   return;
               }
-              var folder = determineBestFolder(sender.tab, request, folders);
-              if (folder == null){
-                  // Find the uncategorized folder and create bookmark there
-                  getUncategorizedFolder(other, otherID, function(uncategorized){
-                      chrome.bookmarks.create({'parentId': uncategorized.id,
-                            'title': sender.tab.title || "No title",
-                            'url': sender.tab.url}, function(bookmark) {
-                         populateInterface(uncategorized.id, folders, bookmark);
+              var folder = determineBestFolder(sender.tab, request, folders, function(folderName){
+                  if (folderName == "Uncategorized"){
+                      // Find the uncategorized folder and create bookmark there
+                      getFolder(name, other, otherID, true, function(uncategorized){
+                          chrome.bookmarks.create({'parentId': uncategorized.id,
+                                'title': sender.tab.title || "No title",
+                                'url': sender.tab.url}, function(bookmark) {
+                             populateInterface(uncategorized.id, folders, bookmark);
+                          });
                       });
-                  });
-              }else{
-                  chrome.bookmarks.create({'parentId': folder.id,
-                     'title': sender.tab.title,
-                     'url': sender.tab.url}, function(bookmark) {
-                     populateInterface(folder.id, folders, bookmark);
-                  });
-              }
-              // At this point folder will be the folder containing the bookmark
+                  }else{
+                      getFolder(folderName, other, otherID, false, function(folder) {
+                          chrome.bookmarks.create({'parentId': folder.id,
+                             'title': sender.tab.title,
+                             'url': sender.tab.url}, function(bookmark) {
+                             populateInterface(folder.id, folders, bookmark);
+                          });
+                      });
+                  }
+              });
           });
      });
 });
@@ -67,18 +69,22 @@ function retrieveFolders(folder) {
     return folders;
 }
 
-function getUncategorizedFolder(folders, otherID, callback){
+function getFolder(name, folders, otherID, create, callback){
     for (var folderKey in folders){
         var folder = folders[folderKey];
-        if (folder.title == "Uncategorized")
+        if (folder.title == name)
             return callback(folder);
     }
-    // Create uncategorized folder
-    chrome.bookmarks.create({'parentId': otherID, 'title': 'Uncategorized'},
-        function(uncategorizedFolder) {
-            callback(uncategorizedFolder); 
-        }
-    );
+    if (create){
+        // Create uncategorized folder
+        chrome.bookmarks.create({'parentId': otherID, 'title': name},
+            function(folder) {
+                callback(folder); 
+            }
+        );
+    }else{
+        callback(null);
+    }
 }
 
 function populateInterface(folderID, otherFolders, bookmark){
@@ -135,14 +141,28 @@ function populateInterface(folderID, otherFolders, bookmark){
 }
 
 // For now just look for folder name in page title
-function determineBestFolder(page, meta, folders){
-    var folder = null;
-    folders.forEach(function(currentFolder){
-        var regex = new RegExp("\\b"+currentFolder.title+"\\b","i");
-        if (regex.test(page.title)){
-           folder = currentFolder;
-           return false;
-        }
-    });
-    return folder;
+function determineBestFolder(page, meta, folders, callback){
+    //var folder = null;
+    //folders.forEach(function(currentFolder){
+    //    var regex = new RegExp("\\b"+currentFolder.title+"\\b","i");
+    //    if (regex.test(page.title)){
+    //       folder = currentFolder;
+    //       return false;
+    //    }
+    //});
+    
+    chrome.storage.sync.get({
+        "feature_count":{},
+        "klass_count":{}
+    }, function(storage){
+        var c = new NaiveBayesClassifier(storage);
+        callback(c.classify(page.title));
+    }
+    //return folder;
 }
+
+//TODO
+//On installation scan folders and save data
+//On bookmark creation, move? train and save
+
+

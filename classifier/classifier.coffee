@@ -4,7 +4,9 @@ STOP_WORDS = "a,able,about,across,after,all,almost,also,am,among,an,and,any,are,
 class Classifier
     constructor: (@store) ->
         if @store?
-            # Set internals from store
+            # Set internals from an external store
+            @feature_count = @store.feature_count
+            @klass_count = @store.klass_count
         else
            @feature_count = {}
            @klass_count = {}
@@ -12,6 +14,10 @@ class Classifier
         stop_words = "\\b"+stop_words+"\\b"
         @stop_words = RegExp(stop_words, "ig")
 
+     # returns object representing trained data
+     to_object:->
+         feature_count:@feature_count
+         klass_count:@klass_count
 
      # Assumes document is a string
      get_features:(dokument) ->
@@ -58,14 +64,9 @@ class Classifier
      feature_probability:(feature, klass) ->
          if not klass of @klass_count
              return 0.0
-         # What would dividing by the total occurrences of that feature give you?
-         # I don't think this does anything, it needs to be the total number of times
-         # you see a given word in a klass divided by the total number of times you saw
-         # word total. As is, you could get a probability over 1.
          if feature of @feature_count and klass of @feature_count[feature]
             return @feature_count[feature][klass] / @klass_count[klass]
          return 0.0
-
 
      weighted_probability:(feature, klass, ap = 0.5, ap_weight = 1.0) ->
          prob = @feature_probability(feature, klass)
