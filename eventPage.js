@@ -5,7 +5,7 @@ chrome.extension.onMessage.addListener(
               console.error("'Other Bookmarks' not found."); 
               return;
           }
-          var folders = retrieveFolders(other, otherID);
+          var folders = retrieveFolders(other);
           var alreadyBookmarked = false;
           var bookmark = null;
           var bookmarkFolderID = null;
@@ -46,6 +46,7 @@ chrome.extension.onMessage.addListener(
      });
 });
 
+// Return everything in the "Other bookmarks" folder
 function getOtherBookmarksChildren(callback) {
     chrome.bookmarks.getTree(function(results){
         var title = "Other Bookmarks";
@@ -59,6 +60,8 @@ function getOtherBookmarksChildren(callback) {
      });
 }
 
+
+// Given a list of bookmark nodes, return those that are folders (not actual bookmarks)
 function retrieveFolders(folder) {
     var folders = [];
     for (var nodeKey in folder){
@@ -142,27 +145,86 @@ function populateInterface(folderID, otherFolders, bookmark){
 
 // For now just look for folder name in page title
 function determineBestFolder(page, meta, folders, callback){
-    //var folder = null;
-    //folders.forEach(function(currentFolder){
-    //    var regex = new RegExp("\\b"+currentFolder.title+"\\b","i");
-    //    if (regex.test(page.title)){
-    //       folder = currentFolder;
-    //       return false;
-    //    }
-    //});
     
-    chrome.storage.sync.get({
+    chrome.storage.local.get({
         "feature_count":{},
         "klass_count":{}
     }, function(storage){
         var c = new NaiveBayesClassifier(storage);
         callback(c.classify(page.title));
-    }
-    //return folder;
+    });
 }
 
+// Given a top level folder, return all descendant 
+// children that are not folders
+function getAllPagesInFolder(folder){
+    var pages = []
+    for (var childIndex in folder.children){
+        var childIndex = folder.children[childIndex];
+        if (child.hasOwnProperty("url"))
+          folders.push(child);
+        else
+          pages.concat(getAllPagesInFolder(child));
+    }
+    return pages;
+}
+
+
+// Given a bookmark, navigate up the tree to find its highest
+// parent folder immediately below "Other Bookmarks"
+
+function findKlass(node, callback, descendant){
+     if (!node.hasOwnProperty("parentId"))
+           callback(false);
+     // not sure if other bookmarks doesn't have a parentid or not, it might
+     if (!node.hasOwnProperty("url") && !node.hasOwnProperty("parentId") && node.title == "Other Bookmarks"){
+          callback(true, descendant); 
+     }
+     chrome.bookmarks.get(node.parentId, function(results){
+          findKlass(results[0], callback, node.title);
+     });
+};
+
+
+// Events 
+//
+// On install, scan all bookmarks and train the classifier
+chrome.runtime.onInstalled.addListener(function(details) {
+    if (details.reason == "install"){
+        var c = new NaiveBayesClassifier();
+        getOtherBookmarksChildren(function(nodes, otherID){
+           var topLevelFolders = getFolders(nodes);
+           for (var folderIndex in topLevelFolders){
+               var klass = topLevelFolders[folderIndex].title;
+               var pages = getAllPagesInFolder(topLevelFolders[folderIndex]);
+               for (var pageIndex in pages){
+                   c.train(pages[pageIndex].title, klass);
+               }
+           }
+           chrome.storage.local.set(c.to_object(), function(){});
+        });
+    }
+});
+
+// On bookmark created, determine its root parent
+// if it is "Other Bookmarks", train on the folder
+chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
+    // determine if a bookmark was created or just a folder 
+    if (bookmark.hasOwnProperty("url")) {
+          findKlass(id, function(train, klass){
+                 if (train){
+                       chrome.storage.local.get({
+                           "feature_count":{},
+                           "klass_count":{}
+                       }, function(storage){
+                          var c = new NaiveBayesClassifier(storage);
+                          c.train(bookmark.title, klass);
+                          chrome.storage.local.set(c.to_object(), function(){});
+                       });
+                 }
+          });
+    }
+});
 //TODO
-//On installation scan folders and save data
-//On bookmark creation, move? train and save
-
-
+//move? train and save
+//What about importing
