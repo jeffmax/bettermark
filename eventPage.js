@@ -25,7 +25,7 @@ chrome.extension.onMessage.addListener(
               var folder = determineBestFolder(sender.tab, request, folders, function(folderName){
                   if (folderName == "Uncategorized"){
                       // Find the uncategorized folder and create bookmark there
-                      getFolder(name, other, otherID, true, function(uncategorized){
+                      getFolder(folderName, other, otherID, true, function(uncategorized){
                           chrome.bookmarks.create({'parentId': uncategorized.id,
                                 'title': sender.tab.title || "No title",
                                 'url': sender.tab.url}, function(bookmark) {
@@ -160,9 +160,9 @@ function determineBestFolder(page, meta, folders, callback){
 function getAllPagesInFolder(folder){
     var pages = []
     for (var childIndex in folder.children){
-        var childIndex = folder.children[childIndex];
+        var child = folder.children[childIndex];
         if (child.hasOwnProperty("url"))
-          folders.push(child);
+          pages.push(child);
         else
           pages.concat(getAllPagesInFolder(child));
     }
@@ -174,11 +174,14 @@ function getAllPagesInFolder(folder){
 // parent folder immediately below "Other Bookmarks"
 
 function findKlass(node, callback, descendant){
-     if (!node.hasOwnProperty("parentId"))
+     if (!node.hasOwnProperty("parentId")){
            callback(false);
+           return;
+     }
      // not sure if other bookmarks doesn't have a parentid or not, it might
-     if (!node.hasOwnProperty("url") && !node.hasOwnProperty("parentId") && node.title == "Other Bookmarks"){
+     if (!node.hasOwnProperty("url") && node.parentId=="0" && node.title == "Other Bookmarks"){
           callback(true, descendant); 
+          return;
      }
      chrome.bookmarks.get(node.parentId, function(results){
           findKlass(results[0], callback, node.title);
@@ -193,15 +196,17 @@ chrome.runtime.onInstalled.addListener(function(details) {
     if (details.reason == "install"){
         var c = new NaiveBayesClassifier();
         getOtherBookmarksChildren(function(nodes, otherID){
-           var topLevelFolders = getFolders(nodes);
+           var topLevelFolders = retrieveFolders(nodes);
            for (var folderIndex in topLevelFolders){
                var klass = topLevelFolders[folderIndex].title;
+               if (klass == "Uncategorized") continue;
                var pages = getAllPagesInFolder(topLevelFolders[folderIndex]);
                for (var pageIndex in pages){
                    c.train(pages[pageIndex].title, klass);
                }
            }
-           chrome.storage.local.set(c.to_object(), function(){});
+           chrome.storage.local.set(c.to_object(), function(){
+           });
         });
     }
 });
@@ -211,7 +216,8 @@ chrome.runtime.onInstalled.addListener(function(details) {
 chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
     // determine if a bookmark was created or just a folder 
     if (bookmark.hasOwnProperty("url")) {
-          findKlass(id, function(train, klass){
+          findKlass(bookmark, function(train, klass){
+                 if (klass == "Uncategorized") return;
                  if (train){
                        chrome.storage.local.get({
                            "feature_count":{},

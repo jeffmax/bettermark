@@ -1,7 +1,7 @@
 class NaiveBayesClassifier extends Classifier
 
-    constructor:(threshold=0.1, @default = "Uncategorized") ->
-        super()
+    constructor:(store, threshold=0.000001, @default = "Uncategorized") ->
+        super(store)
         @threshold = Math.log(threshold)
 
     #Using log in the two functions below to avoid underflow
@@ -21,15 +21,14 @@ class NaiveBayesClassifier extends Classifier
        log_threshold = Math.log(@threshold)
        probabilities = {}
        best_score = @threshold
-       best_klass
        for klass of @klass_count
            probabilities[klass] = @prob_category_given_document(dokument, klass)
            if probabilities[klass] > best_score
-                best_score = probabilities[klass]
-                best_klass = klass
-
+               best_score = probabilities[klass]
+               best_klass = klass
+       #console.log(probabilities)
        if best_score > @threshold
-           return klass
+           return best_klass
        else
            return @default
 
