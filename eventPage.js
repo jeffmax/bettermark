@@ -143,9 +143,26 @@ function populateInterface(folderID, otherFolders, bookmark){
 
 }
 
-// For now just look for folder name in page title
 function determineBestFolder(page, meta, folders, callback){
     
+    // First check to see if the title of the page contains
+    // the name of the folder
+    var folder = null;
+    folders.forEach(function(currentFolder){
+        var regex = new RegExp("\\b"+currentFolder.title+"\\b","i");
+        if (regex.test(page.title)){
+           folder = currentFolder;
+           return false;
+        }
+    });
+
+    if (folder) {
+        console.log(folder.title);
+        callback(folder.title);
+        return;
+    }
+    
+    // If first guess failed, try the bayes classifier
     chrome.storage.local.get({
         "feature_count":{},
         "klass_count":{}

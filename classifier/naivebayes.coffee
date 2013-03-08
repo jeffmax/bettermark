@@ -26,7 +26,7 @@ class NaiveBayesClassifier extends Classifier
            if probabilities[klass] > best_score
                best_score = probabilities[klass]
                best_klass = klass
-       #console.log(probabilities)
+       console.log(probabilities)
        if best_score > @threshold
            return best_klass
        else
