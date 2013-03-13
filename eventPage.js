@@ -27,7 +27,7 @@ chrome.extension.onMessage.addListener(
                       // Find the uncategorized folder and create bookmark there
                       getFolder(folderName, other, otherID, true, function(uncategorized){
                           chrome.bookmarks.create({'parentId': uncategorized.id,
-                                'title': sender.tab.title || "No title",
+                                'title': sender.tab.title || "",
                                 'url': sender.tab.url}, function(bookmark) {
                              populateInterface(uncategorized.id, folders, bookmark);
                           });
@@ -35,7 +35,7 @@ chrome.extension.onMessage.addListener(
                   }else{
                       getFolder(folderName, other, otherID, false, function(folder) {
                           chrome.bookmarks.create({'parentId': folder.id,
-                             'title': sender.tab.title || "No title",
+                             'title': sender.tab.title || "",
                              'url': sender.tab.url}, function(bookmark) {
                              populateInterface(folder.id, folders, bookmark);
                           });
@@ -153,7 +153,7 @@ function determineBestFolder(page, meta, folders, callback){
     var folder = null;
     // Odd results if folder name is all spaces
     folders = folders.filter(function(folder){
-        if (folder.title.trim().length) return true;
+        if (folder.title.trim()) return true;
         return false;
     });
 
@@ -203,7 +203,7 @@ function findKlass(node, callback, descendant){
            return;
      }
      if (!node.hasOwnProperty("url") && node.parentId=="0" && node.title == "Other Bookmarks"){
-          callback(node.title !== "Uncategorized", descendant);
+          callback(node.title !== "Uncategorized" && descendant.trim(),  descendant);
           return;
      }
      chrome.bookmarks.get(node.parentId, function(results){
@@ -221,7 +221,7 @@ chrome.runtime.onInstalled.addListener(function(details) {
         getOtherBookmarksChildren(function(nodes, otherID){
            var topLevelFolders = retrieveFolders(nodes);
            topLevelFolders = topLevelFolders.filter(function(bookmark){
-               if (bookmark.title.trim().length) return true;
+               if (bookmark.title.trim()) return true;
                return false;
            });
            for (var folderIndex in topLevelFolders){
@@ -229,7 +229,8 @@ chrome.runtime.onInstalled.addListener(function(details) {
                if (klass == "Uncategorized") continue;
                var pages = getAllPagesInFolder(topLevelFolders[folderIndex]);
                for (var pageIndex in pages){
-                   c.train(pages[pageIndex].title, klass);
+                   if (pages[pageIndex].title.trim())
+                       c.train(pages[pageIndex].title, klass);
                }
            }
            chrome.storage.local.set(c.to_object(), function(){
@@ -242,9 +243,9 @@ chrome.runtime.onInstalled.addListener(function(details) {
 // if it is "Other Bookmarks", train on the folder
 chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
     // determine if a bookmark was created or just a folder 
-    if (bookmark.hasOwnProperty("url")) {
+    if (bookmark.hasOwnProperty("url") && bookmark.title && bookmark.title.trim()) {
           findKlass(bookmark, function(train, klass){
-                 if (train && klass.trim().length()){
+                 if (train){
                        chrome.storage.local.get({
                            "feature_count":{},
                            "klass_count":{}
@@ -272,18 +273,18 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
         chrome.bookmarks.get(id, function(bookmark) {
              // Is this a bookmark or a folder that was moved
              if bookmark.hasOwnProperty("url"){
+                  // can't train a bookmark with no title
+                  if (!bookmark.title || !bookmark.title.trim()) return;
                   // untrain
                   findKlass(moveInfo.oldParentId, function(train, oldKlass){
                          if (train){
                                // Don't do anything for empty folder names
-                               if (!oldKlass.trim().length) return;
-                               c.untrain(bookmark.title, klass);
+                               c.untrain(bookmark.title, oldKlass);
                          };
                          // train, this has to come last so we only need to save once
                          findKlass(moveInfo.newParentId, function(train, newKlass){
                                 if (train){
                                       // Don't do anything for empty folder names
-                                      if (!newKlass.trim().length) return;
                                       c.train(bookmark.title, newKlass);
                                 }
                                 chrome.storage.local.set(c.to_object(), function(){});
