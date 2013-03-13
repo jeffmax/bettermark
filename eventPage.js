@@ -72,6 +72,9 @@ function retrieveFolders(folder) {
     return folders;
 }
 
+// Given a list of folder objects, returns one with a the given name
+// If not found, and create is true, creates the folder under folder
+// otherID
 function getFolder(name, folders, otherID, create, callback){
     for (var folderKey in folders){
         var folder = folders[folderKey];
@@ -295,3 +298,4 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
 
 //TODO
 //What about importing
+
