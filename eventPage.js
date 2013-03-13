@@ -194,7 +194,6 @@ function getAllPagesInFolder(folder){
 
 // Given a bookmark, navigate up the tree to find its highest
 // parent folder immediately below "Other Bookmarks"
-
 function findKlass(node, callback, descendant){
      if (!node.hasOwnProperty("parentId")){
            callback(false);
@@ -221,7 +220,7 @@ chrome.runtime.onInstalled.addListener(function(details) {
            var topLevelFolders = retrieveFolders(nodes);
            topLevelFolders = topLevelFolders.filter(function(bookmark){
                if (bookmark.title.trim().length) return true;
-               return false
+               return false;
            });
            for (var folderIndex in topLevelFolders){
                var klass = topLevelFolders[folderIndex].title;
@@ -244,7 +243,7 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
     if (bookmark.hasOwnProperty("url")) {
           findKlass(bookmark, function(train, klass){
                  if (klass == "Uncategorized") return;
-                 if (train){
+                 if (train && klass.trim().length()){
                        chrome.storage.local.get({
                            "feature_count":{},
                            "klass_count":{}
@@ -258,6 +257,43 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
     }
 });
 
+// Bookmarks are created and moved often, need to make it possible to
+// untrain and train on the new folder
+chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
+    // Get name of old folder
+    // If first guess failed, try the bayes classifier
+    // TODO implement untrain in the classifier
+    chrome.storage.local.get({
+        "feature_count":{},
+        "klass_count":{}
+    }, function(storage){
+        var c = new NaiveBayesClassifier(storage);
+        chrome.bookmarks.get(id, function(bookmark) {
+             // Is this a bookmark or a folder that was moved
+             if bookmark.hasOwnProperty("url"){
+                  // untrain
+                  findKlass(moveInfo.oldParentId, function(train, oldKlass){
+                         if (train){
+                               // Don't do anything for empty folder names
+                               if (!oldKlass.trim().length) return;
+                               c.untrain(bookmark.title, klass);
+                         };
+                         // train, this has to come last so we only need to save once
+                         findKlass(moveInfo.newParentId, function(train, newKlass){
+                                if (train){
+                                      // Don't do anything for empty folder names
+                                      if (!newKlass.trim().length) return;
+                                      c.train(bookmark.title, newKlass);
+                                }
+                                chrome.storage.local.set(c.to_object(), function(){});
+                         });
+                  });
+             }else{
+                 //TODO handle a whole folder that has been moved
+             }
+         });
+    });
+});
+
 //TODO
-//move? train and save
 //What about importing
