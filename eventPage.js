@@ -62,10 +62,10 @@ function getOtherBookmarksChildren(callback) {
 
 
 // Given a list of bookmark nodes, return those that are folders (not actual bookmarks)
-function retrieveFolders(folder) {
+function retrieveFolders(nodes) {
     var folders = [];
-    for (var nodeKey in folder){
-      var node = folder[nodeKey];
+    for (var nodeKey in nodes){
+      var node = nodes[nodeKey];
       if (!node.hasOwnProperty("url"))
           folders.push(node);
     }
