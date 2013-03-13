@@ -148,6 +148,12 @@ function determineBestFolder(page, meta, folders, callback){
     // First check to see if the title of the page contains
     // the name of the folder
     var folder = null;
+    // Odd results if folder name is all spaces
+    folders = folders.filter(function(folder){
+        if (folder.title.trim().length) return true;
+        return false;
+    });
+
     folders.forEach(function(currentFolder){
         var regex = new RegExp("\\b"+currentFolder.title+"\\b","i");
         if (regex.test(page.title)){
@@ -157,11 +163,10 @@ function determineBestFolder(page, meta, folders, callback){
     });
 
     if (folder) {
-        console.log(folder.title);
         callback(folder.title);
         return;
     }
-    
+
     // If first guess failed, try the bayes classifier
     chrome.storage.local.get({
         "feature_count":{},
@@ -206,7 +211,7 @@ function findKlass(node, callback, descendant){
 };
 
 
-// Events 
+// Events
 //
 // On install, scan all bookmarks and train the classifier
 chrome.runtime.onInstalled.addListener(function(details) {
@@ -214,6 +219,10 @@ chrome.runtime.onInstalled.addListener(function(details) {
         var c = new NaiveBayesClassifier();
         getOtherBookmarksChildren(function(nodes, otherID){
            var topLevelFolders = retrieveFolders(nodes);
+           topLevelFolders = topLevelFolders.filter(function(bookmark){
+               if (bookmark.title.trim().length) return true;
+               return false
+           });
            for (var folderIndex in topLevelFolders){
                var klass = topLevelFolders[folderIndex].title;
                if (klass == "Uncategorized") continue;
@@ -248,6 +257,7 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
           });
     }
 });
+
 //TODO
 //move? train and save
 //What about importing
