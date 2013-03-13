@@ -35,7 +35,7 @@ chrome.extension.onMessage.addListener(
                   }else{
                       getFolder(folderName, other, otherID, false, function(folder) {
                           chrome.bookmarks.create({'parentId': folder.id,
-                             'title': sender.tab.title,
+                             'title': sender.tab.title || "No title",
                              'url': sender.tab.url}, function(bookmark) {
                              populateInterface(folder.id, folders, bookmark);
                           });
@@ -199,9 +199,8 @@ function findKlass(node, callback, descendant){
            callback(false);
            return;
      }
-     // not sure if other bookmarks doesn't have a parentid or not, it might
      if (!node.hasOwnProperty("url") && node.parentId=="0" && node.title == "Other Bookmarks"){
-          callback(true, descendant); 
+          callback(node.title !== "Uncategorized", descendant);
           return;
      }
      chrome.bookmarks.get(node.parentId, function(results){
@@ -242,7 +241,6 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
     // determine if a bookmark was created or just a folder 
     if (bookmark.hasOwnProperty("url")) {
           findKlass(bookmark, function(train, klass){
-                 if (klass == "Uncategorized") return;
                  if (train && klass.trim().length()){
                        chrome.storage.local.get({
                            "feature_count":{},
