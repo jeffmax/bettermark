@@ -19,7 +19,7 @@ chrome.extension.onMessage.addListener(
                  }
               });
               if (alreadyBookmarked){
-                     populateInterface(bookmarkFolderID, folders, bookmark);
+                  populateInterface(bookmarkFolderID, folders, bookmark);
                   return;
               }
               var folder = determineBestFolder(sender.tab, request, folders, function(folderName){
@@ -202,7 +202,7 @@ function findKlass(node, callback, descendant){
            callback(false);
            return;
      }
-     if (!node.hasOwnProperty("url") && node.parentId=="0" && node.title == "Other Bookmarks"){
+     if (isKlassNode(node)){
           callback(node.title !== "Uncategorized" && descendant.trim(),  descendant);
           return;
      }
@@ -211,6 +211,11 @@ function findKlass(node, callback, descendant){
      });
 };
 
+function isKlassNode(node){
+     if (!node.hasOwnProperty("url") && node.parentId=="0" && node.title == "Other Bookmarks")
+         return true;
+     return false;
+}
 
 // Events
 //
@@ -262,9 +267,6 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
 // Bookmarks are created and moved often, need to make it possible to
 // untrain and train on the new folder
 chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
-    // Get name of old folder
-    // If first guess failed, try the bayes classifier
-    // TODO implement untrain in the classifier
     chrome.storage.local.get({
         "feature_count":{},
         "klass_count":{}
@@ -272,7 +274,7 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
         var c = new NaiveBayesClassifier(storage);
         chrome.bookmarks.get(id, function(bookmark) {
              // Is this a bookmark or a folder that was moved
-             if bookmark.hasOwnProperty("url"){
+             if (bookmark.hasOwnProperty("url")){
                   // can't train a bookmark with no title
                   if (!bookmark.title || !bookmark.title.trim()) return;
                   // untrain
@@ -297,6 +299,57 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
     });
 });
 
-//TODO
+// If a bookmark title was changed, we have to untrain on its title and retrain
+// If a top-level folder changes, we have to untrain change the name of its Klass 
+// inside the klassifier
+chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
+    chrome.storage.local.get({
+        "feature_count":{},
+        "klass_count":{},
+        "cache":{}
+    }, function(storage){
+        var c = new NaiveBayesClassifier(storage);
+        if (changeInfo.hasOwnProperty("url")){
+               // can't train a bookmark with no title
+               var old_title = storage.cache[id].title;
+               find_klass(id, function(train, klass){
+                   if (train && old_title && old_title.trim().length){
+                       c.untrain(old_title, klass);
+                   }
+                   if (train && changeInfo.title && changeInfo.title.trim().length){
+                       c.train(changeInfo.title, klass);
+                   }
+                   storage.cache[id].title = changeInfo.title;
+                   var new_storage = c.to_object();
+                   new_storage.cache = storage.cache;
+                   chrome.storage.local.set(new_storage, function(){});
+               });
+
+        } else {
+            // This only matters if this folder is a klass folder
+            chrome.bookmarks.get(id, function(results){
+                if (isKlassNode(results[0]){
+                    var old_title = storage.cache[id].title;
+                    if (old_title === "Uncategorized") {
+                        // No retraining, things in an uncategorized folder do not get trained
+                        // TODO create function that takes a node and klass and recursively 
+                        // trains all nodes in that folder node on that klass
+                    }else{
+                        c.renameKlass(storage.cache[id].title, changeInfo.title);
+                    }
+                    storage.cache[id].title = changeInfo.title;
+                    var new_storage = c.to_object();
+                    new_storage.cache = storage.cache;
+                    chrome.storage.local.set(new_storage, function(){});
+                }
+            });
+        }
+    });
+});
+ //TODO
 //What about importing
+//What if they try to rename the uncategorized folder
+//What if they move a former top level folder to another folder
+//what if they make a former none top level folder top level
+//What is happening if we train on a title that contains nothing but stop words
 
