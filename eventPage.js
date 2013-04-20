@@ -147,7 +147,7 @@ function populateInterface(folderID, otherFolders, bookmark){
 }
 
 function determineBestFolder(page, meta, folders, callback){
-    
+
     // First check to see if the title of the page contains
     // the name of the folder
     var folder = null;
@@ -186,7 +186,7 @@ function getAllPagesInFolder(folder){
     var pages = []
     for (var childIndex in folder.children){
         var child = folder.children[childIndex];
-        if (child.hasOwnProperty("url"))
+        if (child.hasOwnProperty("url") && child.hasOwnProperty('title') && child.title.trim().length)
           pages.push(child);
         else
           pages.concat(getAllPagesInFolder(child));
@@ -199,11 +199,17 @@ function getAllPagesInFolder(folder){
 // parent folder immediately below "Other Bookmarks"
 function findKlass(node, callback, descendant){
      if (!node.hasOwnProperty("parentId")){
-           callback(false);
+           callback(false, undefined);
            return;
      }
-     if (isKlassNode(node)){
-          callback(node.title !== "Uncategorized" && descendant.trim(),  descendant);
+     if (!node.hasOwnProperty("url") && node.parentId == "0" && node.title == "Other Bookmarks"){
+          // it is possible this was called on the "Other Bookmarks" itself, in which case the answer
+          // is undefined
+          if (typeof descendant === "undefined"){
+              callback(false, undefined);
+              return;
+          }
+          callback(node.title !== "Uncategorized" && descendant.trim(),  descendant || node.title);
           return;
      }
      chrome.bookmarks.get(node.parentId, function(results){
@@ -211,10 +217,41 @@ function findKlass(node, callback, descendant){
      });
 };
 
-function isKlassNode(node){
-     if (!node.hasOwnProperty("url") && node.parentId=="0" && node.title == "Other Bookmarks")
-         return true;
-     return false;
+function isKlassNode(node, callback){
+     chrome.bookmarks.get(node.parentId, function(results){
+         var parent = results[0];
+         if (!node.hasOwnProperty("url") && parent.parentId == "0" && parentNode.title == "Other Bookmarks")
+             callback(true);
+         else
+             callback(false);
+     }
+}
+
+
+function trainFolder(klass, node, classifier, untrain) {
+    var verb = untrain ?  'untrain' : 'train';
+    function train(c){
+        var index;
+        for (index in getAllPagesInFolder(node){
+               page = node[index];
+               c[verb](page.title, klass);
+        }
+    }
+
+    if (typeof classifier === "undefined") {
+        chrome.storage.local.get({
+            "feature_count":{},
+            "klass_count":{},
+            "cache":{}
+        }, function(storage){
+             var c = new NaiveBayesClassifier(storage);
+             train(c);
+             chrome.storage.local.set(c.to_object(), function(){
+             });
+        });
+    }else{
+        train(c);
+    }
 }
 
 // Events
@@ -253,10 +290,13 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
                  if (train){
                        chrome.storage.local.get({
                            "feature_count":{},
-                           "klass_count":{}
+                           "klass_count":{},
+                           "cache" : {}
                        }, function(storage){
                           var c = new NaiveBayesClassifier(storage);
                           c.train(bookmark.title, klass);
+                          var new_cache = c.to_object();
+                          new_cache.cache[id] = bookmark.title.trim();
                           chrome.storage.local.set(c.to_object(), function(){});
                        });
                  }
@@ -273,6 +313,8 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
     }, function(storage){
         var c = new NaiveBayesClassifier(storage);
         chrome.bookmarks.get(id, function(bookmark) {
+             // It moved, but does it matter?
+             if (bookmark.parentId === moveInfo.oldParentId) true;
              // Is this a bookmark or a folder that was moved
              if (bookmark.hasOwnProperty("url")){
                   // can't train a bookmark with no title
@@ -293,11 +335,40 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
                          });
                   });
              }else{
-                 //TODO handle a whole folder that has been moved
+                 chrome.bookmarks.get([id, moveInfo.oldParentId], function(results]){
+                     var node = results[0], 
+                         oldParent = results[1],
+                         wasAKlass = false,
+                     if (oldParent.id === "0" && oldParent.title === "Other Bookmarks"){
+                         wasAKlass = true;
+                     }
+                     findKlass(oldParent, function(untrain, oldKlass){
+                         // if the node was a root node than we can't use its oldParent's klass
+                         // as the old klass because it would have had no klass
+                         if (wasAKlass)
+                             oldKlass = node.title;
+                         findKlass(node, function(train, newKlass){
+                             // Note it really doesn't matter if we were or root node before or are one now
+                             // As long as we get the old and new klass designations right, that will take
+                             // care of itself
+                             if (oldKlass === newKlass){
+                                 // Either folder was outside "Other Bookmarks" folder and still is
+                                 // or the klass did not change during the move
+                                 return;
+                             }
+                             if (typeof oldKlass !== "undefined" && oldKlass !== "Uncategorized" && oldKlass.trim().length)
+                                 trainFolder(node, oldKlass, c, true);
+                             if (typeof newKlass !== "undefined" && newKlass !== "Uncategorized" && newKlass.trim().length)
+                                 trainFolder(node, newKlass, c);
+                         });
+                     });
+                });
              }
          });
     });
 });
+
+
 
 // If a bookmark title was changed, we have to untrain on its title and retrain
 // If a top-level folder changes, we have to untrain change the name of its Klass 
@@ -309,47 +380,51 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
         "cache":{}
     }, function(storage){
         var c = new NaiveBayesClassifier(storage);
+        var old_title = storage.cache[id].title;
+        if (old_title === changeInfo.title) return;
         if (changeInfo.hasOwnProperty("url")){
                // can't train a bookmark with no title
-               var old_title = storage.cache[id].title;
                find_klass(id, function(train, klass){
-                   if (train && old_title && old_title.trim().length){
+                   if (!train) return;
+                   if (old_title && old_title.trim().length){
                        c.untrain(old_title, klass);
                    }
-                   if (train && changeInfo.title && changeInfo.title.trim().length){
+                   if (changeInfo.title && changeInfo.title.trim().length){
                        c.train(changeInfo.title, klass);
                    }
-                   storage.cache[id].title = changeInfo.title;
+                   storage.cache[id].title = changeInfo.title.trim();
                    var new_storage = c.to_object();
                    new_storage.cache = storage.cache;
                    chrome.storage.local.set(new_storage, function(){});
                });
-
         } else {
             // This only matters if this folder is a klass folder
             chrome.bookmarks.get(id, function(results){
-                if (isKlassNode(results[0]){
-                    var old_title = storage.cache[id].title;
-                    if (old_title === "Uncategorized") {
+                isKlassNode(results[0], function(klassNode){
+                    if (!klassNode) return;
+                    node = results[0];
+                    if (old_title === "Uncategorized" || old_title.trim().length === 0) {
                         // No retraining, things in an uncategorized folder do not get trained
-                        // TODO create function that takes a node and klass and recursively 
-                        // trains all nodes in that folder node on that klass
+                        if (changeInfo.title.trim().length)
+                           trainFolder(node, changeInfo.title, c);
+                    }else if (changeInfo.title === "Uncategorized" || old_title.trim().length === 0){
+                        // Changed title to Uncategorized, just untrain on old folder
+                        if (old_title.trim().length)
+                           trainFolder(node, old_title, c, true);
                     }else{
-                        c.renameKlass(storage.cache[id].title, changeInfo.title);
+                         c.renameKlass(old_title, changeInfo.title);
                     }
                     storage.cache[id].title = changeInfo.title;
                     var new_storage = c.to_object();
                     new_storage.cache = storage.cache;
                     chrome.storage.local.set(new_storage, function(){});
-                }
+                });
             });
         }
     });
 });
  //TODO
 //What about importing
-//What if they try to rename the uncategorized folder
-//What if they move a former top level folder to another folder
-//what if they make a former none top level folder top level
+//What if they try to rename the uncategorized folder = just train on the new name
 //What is happening if we train on a title that contains nothing but stop words
-
+//A bookmark or folder is deleted
