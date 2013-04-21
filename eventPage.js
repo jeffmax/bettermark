@@ -463,7 +463,7 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
                         if (old_title.trim().length)
                            trainFolder(node, old_title, c, storage.cache, true);
                     }else{
-                         c.renameKlass(old_title, changeInfo.title);
+                         c.rename_class(old_title, changeInfo.title);
                     }
                     storage.cache[id].title = changeInfo.title;
                     var new_storage = c.to_object();
