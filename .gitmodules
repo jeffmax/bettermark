@@ -1,0 +1,3 @@
+[submodule "coffee-classifier"]
+	path = coffee-classifier
+	url = git@github.com:jeffmax/coffee-classifier.git
