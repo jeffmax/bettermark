@@ -1,10 +1,12 @@
 chrome.extension.onMessage.addListener(
     function(request, sender, sendResponse) {
-      getOtherBookmarksChildren(function(other, otherID){
-          if (other == null) {
+      getTopLevelBookmarkNode("Other Bookmarks", function(otherNode){
+          if (other === null) {
               console.error("'Other Bookmarks' not found."); 
               return;
           }
+          var other = otherNode.children, otherID = otherNode.id;
+          var flattenedFolders = retrieveFlatFolderNames(otherNode);
           var folders = retrieveFolders(other);
           var alreadyBookmarked = false;
           var bookmark = null;
@@ -19,7 +21,7 @@ chrome.extension.onMessage.addListener(
                  }
               });
               if (alreadyBookmarked){
-                  populateInterface(bookmarkFolderID, folders, bookmark);
+                  populateInterface(bookmarkFolderID, flattenedFolders, bookmark);
                   return;
               }
               var folder = determineBestFolder(sender.tab, request, folders, function(folderName){
@@ -29,7 +31,7 @@ chrome.extension.onMessage.addListener(
                           chrome.bookmarks.create({'parentId': uncategorized.id,
                                 'title': sender.tab.title || "",
                                 'url': sender.tab.url}, function(bookmark) {
-                             populateInterface(uncategorized.id, folders, bookmark);
+                             populateInterface(uncategorized.id, flattenedFolders, bookmark);
                           });
                       });
                   }else{
@@ -37,7 +39,7 @@ chrome.extension.onMessage.addListener(
                           chrome.bookmarks.create({'parentId': folder.id,
                              'title': sender.tab.title || "",
                              'url': sender.tab.url}, function(bookmark) {
-                             populateInterface(folder.id, folders, bookmark);
+                             populateInterface(folder.id, flattenedFolders, bookmark);
                           });
                       });
                   }
@@ -46,20 +48,48 @@ chrome.extension.onMessage.addListener(
      });
 });
 
-// Return everything in the "Other bookmarks" folder
-function getOtherBookmarksChildren(callback) {
-    chrome.bookmarks.getTree(function(results){
-        var title = "Other Bookmarks";
-        var topLevel = results[0].children;
-        for (var nodeKey in topLevel){
-           var node = topLevel[nodeKey];
-           if (node.title == title)
-              return callback(node.children, node.id);
+// Repeat string function from http://stackoverflow.com/questions/202605/repeat-string-javascript
+function repeat(pattern, count) {
+    if (count < 1) return '';
+    var result = '';
+    while (count > 0) {
+        if (count & 1) result += pattern;
+        count >>= 1, pattern += pattern;
+    }
+    return result;
+}
+// Given a node, retrieve all children folders in a flat list
+// with optional leading spaces to express depth
+function retrieveFlatFolderNames(folder, indent, depth){
+    if (typeof indent === "undefined")
+        indent = unescape("  ".replace(/ /g, "%A0"));
+    if (typeof depth === "undefined")
+        depth = 0;
+
+    var folders = [];
+    for (var childIndex in folder.children){
+        var child = folder.children[childIndex];
+        if (!child.hasOwnProperty("url")) {
+          child.indentedTitle = repeat(indent, depth) + child.title;
+          folders.push(child);
+          folders = folders.concat(retrieveFlatFolderNames(child, indent, depth+1));
         }
-        return callback(null, null);
-     });
+    }
+    return folders;
 }
 
+// find a toplevel bookmark with a given name 
+function getTopLevelBookmarkNode(name, callback){
+    chrome.bookmarks.getTree(function(results){
+        var topLevel = results[0].children, nodeKey;
+        for (nodeKey in topLevel){
+           var node = topLevel[nodeKey];
+           if (node.title == name)
+              return callback(node);
+        }
+        return callback(null);
+     });
+}
 
 // Given a list of bookmark nodes, return those that are folders (not actual bookmarks)
 function retrieveFolders(nodes) {
@@ -107,14 +137,14 @@ function populateInterface(folderID, otherFolders, bookmark){
     chrome.bookmarks.getRecent(2, function(bookmarks){
         if (bookmarks.length > 0)
             if ((bookmarks[0].url === bookmark.url) && (bookmarks.length > 1))
-                id = bookmarks[1].parentId
+                id = bookmarks[1].parentId;
             else
-                id = bookmarks[0].parentId
+                id = bookmarks[0].parentId;
         else
-            id = null
+            id = null;
         var cache_option;
         otherFolders.forEach(function(currentFolder){
-            var newOption = new Option(currentFolder.title, currentFolder.id);
+            var newOption = new Option(currentFolder.indentedTitle, currentFolder.id);
             newOption.selected = (folderID == currentFolder.id);
             if (currentFolder.id == id) {
                 newOption.className = "last";
@@ -129,7 +159,7 @@ function populateInterface(folderID, otherFolders, bookmark){
         // Setup move to last used folder option 
         var last_folder = pop_doc.getElementById("last_folder");
         last_folder.addEventListener("click", function(){
-            if (cache_option != null){
+            if (cache_option !== null){
                chrome.bookmarks.move(bookmark.id, {parentId:id},function(){
                     cache_option.selected = true; 
                });
@@ -186,13 +216,13 @@ function determineBestFolder(page, meta, folders, callback){
 // Given a top level folder, return all descendant 
 // children that are not folders
 function getAllPagesInFolder(folder){
-    var pages = []
+    var pages = [];
     for (var childIndex in folder.children){
         var child = folder.children[childIndex];
         if (child.hasOwnProperty("url") && child.hasOwnProperty('title') && child.title.trim().length)
           pages.push(child);
         else
-          pages.concat(getAllPagesInFolder(child));
+          pages = pages.concat(getAllPagesInFolder(child));
     }
     return pages;
 }
@@ -207,7 +237,7 @@ function getAllFoldersInFolder(folder){
         if (!child.hasOwnProperty("url"))
           folders.push(child);
         else
-          folders.concat(getAllFoldersInFolder(child));
+          folders = folders.concat(getAllFoldersInFolder(child));
     }
     return folders;
 }
@@ -276,7 +306,7 @@ function trainFolder(node, klass, classifier, cache,  untrain) {
              chrome.storage.local.set(save, function(){});
         });
     }else{
-        train(c, cache);
+        train(classifier, cache);
     }
 }
 
