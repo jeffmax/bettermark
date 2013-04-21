@@ -198,9 +198,22 @@ function getAllPagesInFolder(folder){
 }
 
 
+// Given a return all descendant 
+// children that are folders
+function getAllFoldersInFolder(folder){
+    var folders = [];
+    for (var childIndex in folder.children){
+        var child = folder.children[childIndex];
+        if (!child.hasOwnProperty("url"))
+          folders.push(child);
+        else
+          folders.concat(getAllFoldersInFolder(child));
+    }
+    return folders;
+}
 // Given a bookmark, navigate up the tree to find its highest
 // parent folder immediately below "Other Bookmarks"
-function findKlass(node, callback, descendant){
+function findKlass(node, callback, descendant) {
      if (!node.hasOwnProperty("parentId")){
            callback(false, undefined);
            return;
@@ -218,7 +231,7 @@ function findKlass(node, callback, descendant){
      chrome.bookmarks.get(node.parentId, function(results){
           findKlass(results[0], callback, node.title);
      });
-};
+}
 
 function isKlassNode(node, callback){
      chrome.bookmarks.get(node.parentId, function(results){
@@ -227,33 +240,43 @@ function isKlassNode(node, callback){
              callback(true);
          else
              callback(false);
-     }
+     });
 }
 
 
-function trainFolder(klass, node, classifier, untrain) {
+function trainFolder(node, klass, classifier, cache,  untrain) {
     var verb = untrain ?  'untrain' : 'train';
-    function train(c){
-        var index;
-        for (index in getAllPagesInFolder(node){
-               page = node[index];
+    cache = cache ? cache : {};
+    function train(c, cache){
+        var pages = getAllPagesInFolder(node), index;
+        for (index in pages){
+               page = pages[index];
                c[verb](page.title, klass);
+               cache[page.id] = page.title;
+        }
+        var folders = getAllFoldersInFolder(node);
+        folders.push(node);
+        for (index in folders){
+            folder = folders[index];
+            cache[folder.id] = folder.title;
         }
     }
 
-    if (typeof classifier === "undefined") {
+    if (typeof classifier === "undefined" || typeof cache === "undefiend") {
         chrome.storage.local.get({
             "feature_count":{},
             "klass_count":{},
             "cache":{}
         }, function(storage){
-             var c = new NaiveBayesClassifier(storage);
-             train(c);
-             chrome.storage.local.set(c.to_object(), function(){
-             });
+             var c = new NaiveBayesClassifier(storage),
+             cache = storage.cache;
+             train(c, cache);
+             var save = c.to_object();
+             save.cache = cache;
+             chrome.storage.local.set(save, function(){});
         });
     }else{
-        train(c);
+        train(c, cache);
     }
 }
 
@@ -302,6 +325,7 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
                           var c = new NaiveBayesClassifier(storage);
                           c.train(bookmark.title, klass);
                           var save = c.to_object();
+                          save.cache = storage.cache;
                           save.cache[id] = bookmark.title.trim();
                           chrome.storage.local.set(save, function(){});
                        });
@@ -323,17 +347,12 @@ chrome.bookmarks.onRemoved.addListener(function(id, bookmark) {
                        }, function(storage){
                           var c = new NaiveBayesClassifier(storage);
                           c.untrain(bookmark.title, klass);
-                          var new_cache = c.to_object();
-                          new_cache.cache[id] = bookmark.title.trim();
                           chrome.storage.local.set(c.to_object(), function(){});
                        });
                  }
           });
     }
-}
-
-
-
+});
 
 // Bookmarks are created and moved often, need to make it possible to
 // untrain and train on the new folder
@@ -347,7 +366,7 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
              // It moved, but does it matter?
              if (bookmark.parentId === moveInfo.oldParentId) true;
              // Is this a bookmark or a folder that was moved
-             if (bookmark.hasOwnProperty("url")){
+             if (bookmark.hasOwnProperty("url")) {
                   // can't train a bookmark with no title
                   if (!bookmark.title || !bookmark.title.trim()) return;
                   // untrain
@@ -355,7 +374,7 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
                          if (train){
                                // Don't do anything for empty folder names
                                c.untrain(bookmark.title, oldKlass);
-                         };
+                         }
                          // train, this has to come last so we only need to save once
                          findKlass(moveInfo.newParentId, function(train, newKlass){
                                 if (train){
@@ -365,11 +384,11 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
                                 chrome.storage.local.set(c.to_object(), function(){});
                          });
                   });
-             }else{
-                 chrome.bookmarks.get([id, moveInfo.oldParentId], function(results]){
+             } else {
+                 chrome.bookmarks.get([id, moveInfo.oldParentId], function(results){
                      var node = results[0], 
                          oldParent = results[1],
-                         wasAKlass = false,
+                         wasAKlass = false;
                      if (oldParent.id === "0" && oldParent.title === "Other Bookmarks"){
                          wasAKlass = true;
                      }
@@ -388,9 +407,10 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
                                  return;
                              }
                              if (typeof oldKlass !== "undefined" && oldKlass !== "Uncategorized" && oldKlass.trim().length)
-                                 trainFolder(node, oldKlass, c, true);
+                                 trainFolder(node, oldKlass, c, storage.cache, true);
                              if (typeof newKlass !== "undefined" && newKlass !== "Uncategorized" && newKlass.trim().length)
-                                 trainFolder(node, newKlass, c);
+                                 trainFolder(node, newKlass, c, storage.cache);
+                             chrome.storage.local.set(c.to_object(), function(){});
                          });
                      });
                 });
@@ -437,11 +457,11 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
                     if (old_title === "Uncategorized" || old_title.trim().length === 0) {
                         // No retraining, things in an uncategorized folder do not get trained
                         if (changeInfo.title.trim().length)
-                           trainFolder(node, changeInfo.title, c);
+                           trainFolder(node, changeInfo.title, c, storage.cache);
                     }else if (changeInfo.title === "Uncategorized" || old_title.trim().length === 0){
                         // Changed title to Uncategorized, just untrain on old folder
                         if (old_title.trim().length)
-                           trainFolder(node, old_title, c, true);
+                           trainFolder(node, old_title, c, storage.cache, true);
                     }else{
                          c.renameKlass(old_title, changeInfo.title);
                     }
