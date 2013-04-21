@@ -1,3 +1,0 @@
-[submodule "Porter-Stemmer"]
-	path = Porter-Stemmer
-	url = https://github.com/kristopolous/Porter-Stemmer.git
