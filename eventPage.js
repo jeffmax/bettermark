@@ -147,7 +147,10 @@ function populateInterface(folderID, otherFolders, bookmark){
 }
 
 function determineBestFolder(page, meta, folders, callback){
-
+    if (!page.title || page.title.trim().length === 0){
+        callback("Uncategorized");
+        return;
+    }
     // First check to see if the title of the page contains
     // the name of the folder
     var folder = null;
@@ -209,7 +212,7 @@ function findKlass(node, callback, descendant){
               callback(false, undefined);
               return;
           }
-          callback(node.title !== "Uncategorized" && descendant.trim(),  descendant || node.title);
+          callback(descendant !== "Uncategorized" && descendant.trim().length,  descendant);
           return;
      }
      chrome.bookmarks.get(node.parentId, function(results){
@@ -259,7 +262,8 @@ function trainFolder(klass, node, classifier, untrain) {
 // On install, scan all bookmarks and train the classifier
 chrome.runtime.onInstalled.addListener(function(details) {
     if (details.reason == "install"){
-        var c = new NaiveBayesClassifier();
+        var c = new NaiveBayesClassifier(),
+        cache = {};
         getOtherBookmarksChildren(function(nodes, otherID){
            var topLevelFolders = retrieveFolders(nodes);
            topLevelFolders = topLevelFolders.filter(function(bookmark){
@@ -271,11 +275,13 @@ chrome.runtime.onInstalled.addListener(function(details) {
                if (klass == "Uncategorized") continue;
                var pages = getAllPagesInFolder(topLevelFolders[folderIndex]);
                for (var pageIndex in pages){
-                   if (pages[pageIndex].title.trim())
-                       c.train(pages[pageIndex].title, klass);
+                    c.train(pages[pageIndex].title, klass);
+                    cache[i] = page.title;
                }
            }
-           chrome.storage.local.set(c.to_object(), function(){
+           var save = c.to_object();
+           save.cache = cache;
+           chrome.storage.local.set(save, function(){
            });
         });
     }
@@ -283,8 +289,8 @@ chrome.runtime.onInstalled.addListener(function(details) {
 
 // On bookmark created, determine its root parent
 // if it is "Other Bookmarks", train on the folder
+// determine if a bookmark was created or just a folder 
 chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
-    // determine if a bookmark was created or just a folder 
     if (bookmark.hasOwnProperty("url") && bookmark.title && bookmark.title.trim()) {
           findKlass(bookmark, function(train, klass){
                  if (train){
@@ -295,6 +301,28 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
                        }, function(storage){
                           var c = new NaiveBayesClassifier(storage);
                           c.train(bookmark.title, klass);
+                          var save = c.to_object();
+                          save.cache[id] = bookmark.title.trim();
+                          chrome.storage.local.set(save, function(){});
+                       });
+                 }
+          });
+    }
+});
+
+chrome.bookmarks.onRemoved.addListener(function(id, bookmark) {
+    // This should take care of folders since you can't delete a folder without 
+    // deleting its children
+    if (bookmark.hasOwnProperty("url") && bookmark.title && bookmark.title.trim()) {
+          findKlass(bookmark, function(train, klass){
+                 if (train){
+                       chrome.storage.local.get({
+                           "feature_count":{},
+                           "klass_count":{},
+                           "cache" : {}
+                       }, function(storage){
+                          var c = new NaiveBayesClassifier(storage);
+                          c.untrain(bookmark.title, klass);
                           var new_cache = c.to_object();
                           new_cache.cache[id] = bookmark.title.trim();
                           chrome.storage.local.set(c.to_object(), function(){});
@@ -302,7 +330,10 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
                  }
           });
     }
-});
+}
+
+
+
 
 // Bookmarks are created and moved often, need to make it possible to
 // untrain and train on the new folder
@@ -423,8 +454,3 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
         }
     });
 });
- //TODO
-//What about importing
-//What if they try to rename the uncategorized folder = just train on the new name
-//What is happening if we train on a title that contains nothing but stop words
-//A bookmark or folder is deleted

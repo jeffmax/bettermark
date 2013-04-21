@@ -46,7 +46,10 @@ class Classifier
             record[klass] = if klass of record then record[klass]+1 else 1
             @feature_count[feature] = record
          # Update number of documents in this klass
-         @klass_count[klass] = if klass of @klass_count then @klass_count[klass]+1 else 1
+         # It is possible there were no actual features in this dokument after stripping
+         # stopwords
+         if (features.length)
+            @klass_count[klass] = if klass of @klass_count then @klass_count[klass]+1 else 1
 
      # Documents can be deleted or moved, we need to be able to untrain
      untrain: (dokument, klass) ->
@@ -55,7 +58,8 @@ class Classifier
              record = @feature_count[feature]
              record[klass] -= 1
          # one less dokument in this klass
-         @klass_count[klass] -= 1
+         if (features.length)
+            @klass_count[klass] -= 1
 
      renameKlass: (from, to) ->
          for feature, record of @feature_count
