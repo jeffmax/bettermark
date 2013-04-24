@@ -7,7 +7,7 @@ chrome.extension.onMessage.addListener(
           }
           var other = otherNode.children, otherID = otherNode.id;
           var flattenedFolders = retrieveFlatFolderNames(otherNode);
-          var folders = retrieveFolders(other);
+          var folders = onlyFolders(other);
           var alreadyBookmarked = false;
           var bookmark = null;
           var bookmarkFolderID = null;
@@ -58,6 +58,7 @@ function repeat(pattern, count) {
     }
     return result;
 }
+
 // Given a node, retrieve all children folders in a flat list
 // with optional leading spaces to express depth
 function retrieveFlatFolderNames(folder, indent, depth){
@@ -88,11 +89,11 @@ function getTopLevelBookmarkNode(name, callback){
               return callback(node);
         }
         return callback(null);
-     });
+    });
 }
 
 // Given a list of bookmark nodes, return those that are folders (not actual bookmarks)
-function retrieveFolders(nodes) {
+function onlyFolders(nodes) {
     var folders = [];
     for (var nodeKey in nodes){
       var node = nodes[nodeKey];
@@ -165,8 +166,6 @@ function populateInterface(folderID, otherFolders, bookmark){
                chrome.bookmarks.move(bookmark.id, {parentId:id},function(){
                     cache_option.selected = true; 
                });
-            }else{
-               //TODO notify user of error somehow 
             }
         });
         // Setup change handler
@@ -191,19 +190,6 @@ function determineBestFolder(page, meta, folders, callback){
         return;
     });
 
-    //folders.forEach(function(currentFolder){
-    //    var regex = new RegExp("\\b"+currentFolder.title+"\\b","i");
-    //    if (regex.test(page.title)){
-    //       folder = currentFolder;
-    //       return false;
-    //    }
-    //});
-
-    //if (folder) {
-    //    callback(folder.title);
-    //    return;
-    //}
-
     // If first guess failed, try the bayes classifier
     chrome.storage.local.get({
         "feature_count":{},
@@ -214,7 +200,7 @@ function determineBestFolder(page, meta, folders, callback){
     });
 }
 
-// Given a top level folder, return all descendant 
+// Given a top level folder, return all descendants
 // children that are not folders
 function getAllPagesInFolder(folder){
     var pages = [];
@@ -283,16 +269,12 @@ function trainFolder(node, klass, classifier, cache,  untrain) {
         for (index in pages){
                page = pages[index];
                c[verb](page.title, klass);
-               cache[page.id] = {t: page.title.trim()};
-               cache[page.id].f = false;
         }
         var folders = getAllFoldersInFolder(node);
         folders.push(node);
         for (index in folders){
             folder = folders[index];
-            cache[folder.id] = {t: folder.title.trim()};
-            cache[folder.id].f = true;
-
+            cache[folder.id] =  folder.title.trim();
         }
     }
 
@@ -302,9 +284,8 @@ function trainFolder(node, klass, classifier, cache,  untrain) {
             "klass_count":{},
             "cache":{}
         }, function(storage){
-             var c = new NaiveBayesClassifier(storage),
-             cache = storage.cache;
-             train(c, cache);
+             var c = new NaiveBayesClassifier(storage);
+             train(c, storage.cache);
              var save = c.to_object();
              save.cache = cache;
              chrome.storage.local.set(save, function(){});
@@ -323,14 +304,14 @@ chrome.runtime.onInstalled.addListener(function(details) {
         cache = {};
         getTopLevelBookmarkNode("Other Bookmarks", function(node){
            var nodes = node.children;
-           var topLevelFolders = retrieveFolders(nodes);
+           var topLevelFolders = onlyFolders(nodes);
            topLevelFolders = topLevelFolders.filter(function(bookmark){
                if (bookmark.title.trim()) return true;
                return false;
            });
            for (var folderIndex in topLevelFolders){
                var klass = topLevelFolders[folderIndex].title;
-               if (klass == "Uncategorized") continue;
+               if (klass === "Uncategorized") continue;
                var folder = topLevelFolders[folderIndex];
                trainFolder(folder, klass, c, cache); 
            }
@@ -358,8 +339,8 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
                           c.train(bookmark.title, klass);
                           var save = c.to_object();
                           save.cache = storage.cache;
-                          save.cache[id] = {t :bookmark.title.trim()};
-                          save.cache[id].f = !bookmark.hasOwnProperty('url');
+                          if (!bookmarkmark.hasOwnProperty('url'))
+                              save.cache[id] = bookmark.title.trim();
                           chrome.storage.local.set(save, function(){});
                        });
                  }
@@ -379,20 +360,16 @@ chrome.bookmarks.onRemoved.addListener(function(id, removeInfo) {
         chrome.bookmarks.get(removeInfo.parentId, function(parentNode){
             var cache = storage.cache;
             var c = new NaiveBayesClassifier(storage);
-            if (!cache[id].f && cache[id].t.length) {
-                  findKlass(parentNode, function(train, klass){
-                         if (train){
-                             c.untrain(cache[id].t, klass);
-                             chrome.storage.local.set(c.to_object(), function(){});
-                         }
-                  });
-            }else{
+            if (!cache[id]){
+                var title = cache[id];
+                delete cache[id];
                 // If it's a class folder, remove the class from the classifier
-                if (oldParent.parentId === "0" && oldParent.title === "Other Bookmarks"){
-                    var klass = cache[i].t;
-                    c.delete_klass = klass;
-                    chrome.storage.local.set(c.to_object(), function(){});
+                if (parentNode.parentId === "0" && parentNode.title === "Other Bookmarks"){
+                    c.delete_klass(title);
                 }
+                var save = c.to_object();
+                save.cache = cache;
+                chrome.storage.local.set(save, function(){});
             }
         });
       });
@@ -402,8 +379,9 @@ chrome.bookmarks.onRemoved.addListener(function(id, removeInfo) {
 // untrain and train on the new folder
 chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
     chrome.storage.local.get({
-        "feature_count":{},
-        "klass_count":{}
+        "feature_count": {},
+        "klass_count": {},
+        "cache": {}
     }, function(storage){
         var c = new NaiveBayesClassifier(storage);
         chrome.bookmarks.get(id, function(bookmark) {
@@ -442,7 +420,7 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
                          if (wasAKlass)
                              oldKlass = node.title;
                          findKlass(node, function(train, newKlass){
-                             // Note it really doesn't matter if we were or root node before or are one now
+                             // Note it really doesn't matter if we were a root node before or are one now
                              // As long as we get the old and new klass designations right, that will take
                              // care of itself
                              if (oldKlass === newKlass){
@@ -450,11 +428,17 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
                                  // or the klass did not change during the move
                                  return;
                              }
+                             // if this was a folder that was moved from outside "Other bookmarks"
+                             // we need to cache it's title, because that may not have happened previously
+                             if (typeof oldKlass === "undefined")
+                                 cache[id] = node.title;
                              if (typeof oldKlass !== "undefined" && oldKlass !== "Uncategorized" && oldKlass.trim().length)
                                  trainFolder(node, oldKlass, c, storage.cache, true);
                              if (typeof newKlass !== "undefined" && newKlass !== "Uncategorized" && newKlass.trim().length)
                                  trainFolder(node, newKlass, c, storage.cache);
-                             chrome.storage.local.set(c.to_object(), function(){});
+                             var save = c.to_object();
+                             save.cache = storage.cache;
+                             chrome.storage.local.set(save, function(){});
                          });
                      });
                 });
@@ -465,7 +449,7 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
 
 
 
-// If a bookmark title was changed, we have to untrain on its title and retrain
+// If a bookmark folder title was changed, update its cache
 // If a top-level folder changes, we have to untrain change the name of its Klass 
 // inside the klassifier
 chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
@@ -474,25 +458,10 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
         "klass_count":{},
         "cache":{}
     }, function(storage){
-        var c = new NaiveBayesClassifier(storage);
-        var old_title = storage.cache[id].title;
-        if (old_title === changeInfo.title) return;
-        if (changeInfo.hasOwnProperty("url")){
-               // can't train a bookmark with no title
-               find_klass(id, function(train, klass){
-                   if (!train) return;
-                   if (old_title && old_title.trim().length){
-                       c.untrain(old_title, klass);
-                   }
-                   if (changeInfo.title && changeInfo.title.trim().length){
-                       c.train(changeInfo.title, klass);
-                   }
-                   storage.cache[id].t = changeInfo.title.trim();
-                   var new_storage = c.to_object();
-                   new_storage.cache = storage.cache;
-                   chrome.storage.local.set(new_storage, function(){});
-               });
-        } else {
+        if (!c.hasOwnProperty('title')) {
+            var c = new NaiveBayesClassifier(storage);
+            var old_title = storage.cache[id];
+            if (old_title === changeInfo.title) return;
             // This only matters if this folder is a klass folder
             chrome.bookmarks.get(id, function(results){
                 isKlassNode(results[0], function(klassNode){
@@ -509,10 +478,10 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
                     }else{
                          c.rename_class(old_title, changeInfo.title);
                     }
-                    storage.cache[id].t = changeInfo.title;
-                    var new_storage = c.to_object();
-                    new_storage.cache = storage.cache;
-                    chrome.storage.local.set(new_storage, function(){});
+                    storage.cache[id] = changeInfo.title;
+                    var save = c.to_object();
+                    save.cache = storage.cache;
+                    chrome.storage.local.set(save, function(){});
                 });
             });
         }
