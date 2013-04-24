@@ -339,7 +339,7 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
                           c.train(bookmark.title, klass);
                           var save = c.to_object();
                           save.cache = storage.cache;
-                          if (!bookmarkmark.hasOwnProperty('url'))
+                          if (!bookmark.hasOwnProperty('url'))
                               save.cache[id] = bookmark.title.trim();
                           chrome.storage.local.set(save, function(){});
                        });
