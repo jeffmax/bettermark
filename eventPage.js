@@ -336,6 +336,18 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
                            "cache" : {}
                        }, function(storage){
                           var c = new NaiveBayesClassifier(storage);
+                          // If possible (the user just hit the star button on a 
+                          // live page) we would like to train on the meta data
+                          // associated with the page as well (not just the title)
+                          chrome.tabs.query({url:bookmark.url}, function(tabs){
+                              if (tabs.length){
+                                 var tab_id = tabs[0].id;
+                                 chrome.tabs.sendMessage(tab.id,{}, function(response){
+                                     // Now we have the additional info about the page
+
+                                 });
+                              }
+                          });
                           c.train(bookmark.title, klass);
                           var save = c.to_object();
                           save.cache = storage.cache;
