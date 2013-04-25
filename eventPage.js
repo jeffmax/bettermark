@@ -190,13 +190,12 @@ function determineBestFolder(page, meta, folders, callback){
         return;
     });
 
-    // If first guess failed, try the bayes classifier
     chrome.storage.local.get({
         "feature_count":{},
         "klass_count":{}
     }, function(storage){
         var c = new NaiveBayesClassifier(storage);
-        callback(c.classify(page.title));
+        callback(c.classify(page.title + " " + meta.keywords.join(" ")));
     });
 }
 
@@ -362,7 +361,7 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
                          var tab_id = tabs[0].id;
                          chrome.tabs.sendMessage(tab.id,{}, function(response){
                              // Now we have the additional info about the page
-                             var dokument = bookmark.title + response.meta;
+                             var dokument = bookmark.title + response.keywords.join(" ");
                              trainHelper(dokument, klass, klass_id);
                          });
                       }else{
