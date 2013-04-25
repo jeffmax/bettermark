@@ -242,11 +242,12 @@ function findKlass(node, callback, descendant) {
               callback(false, undefined);
               return;
           }
-          callback(descendant !== "Uncategorized" && descendant.trim().length,  descendant);
+          callback(descendant.title !== "Uncategorized" && descendant.title.trim().length,
+                   descendant.title.trim(), descendant.id);
           return;
      }
      chrome.bookmarks.get(node.parentId, function(results){
-          findKlass(results[0], callback, node.title);
+          findKlass(results[0], callback, node);
      });
 }
 
@@ -288,10 +289,14 @@ function trainFolder(node, klass, classifier, cache,  untrain) {
              train(c, storage.cache);
              var save = c.to_object();
              save.cache = cache;
+             // Since we aren't monitoring for folder creation
+             // whenever we train on a klass we need to cache its name
+             save.cache[node.id] = klass;
              chrome.storage.local.set(save, function(){});
         });
     }else{
         train(classifier, cache);
+        cache[node.id] = klass;
     }
 }
 
@@ -313,7 +318,7 @@ chrome.runtime.onInstalled.addListener(function(details) {
                var klass = topLevelFolders[folderIndex].title;
                if (klass === "Uncategorized") continue;
                var folder = topLevelFolders[folderIndex];
-               trainFolder(folder, klass, c, cache); 
+               trainFolder(folder, klass, c, cache);
            }
            var save = c.to_object();
            save.cache = cache;
@@ -323,42 +328,51 @@ chrome.runtime.onInstalled.addListener(function(details) {
     }
 });
 
+// Helper function taking a classifier, document, and class
+// Trains on the document and saves the state to local disk
+function trainHelper(dokument, klass, klass_id) {
+     chrome.storage.local.get({
+         "feature_count":{},
+         "klass_count":{},
+         "cache" : {}
+     }, function(storage){
+        var c = new NaiveBayesClassifier(storage);
+        // We don't look for folder creation so make sure this 
+        // klass has been cached.
+        storage.cache[klass_id] = klass;
+        c.train(dokument, klass);
+        var save = c.to_object();
+        save.cache = storage.cache;
+        chrome.storage.local.set(save, function(){});
+     });
+}
+
 // On bookmark created, determine its root parent
 // if it is "Other Bookmarks", train on the folder
 // determine if a bookmark was created or just a folder 
 chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
     if (bookmark.hasOwnProperty("url") && bookmark.title && bookmark.title.trim()) {
-          findKlass(bookmark, function(train, klass){
-                 if (train){
-                       chrome.storage.local.get({
-                           "feature_count":{},
-                           "klass_count":{},
-                           "cache" : {}
-                       }, function(storage){
-                          var c = new NaiveBayesClassifier(storage);
-                          // If possible (the user just hit the star button on a 
-                          // live page) we would like to train on the meta data
-                          // associated with the page as well (not just the title)
-                          chrome.tabs.query({url:bookmark.url}, function(tabs){
-                              if (tabs.length){
-                                 var tab_id = tabs[0].id;
-                                 chrome.tabs.sendMessage(tab.id,{}, function(response){
-                                     // Now we have the additional info about the page
-
-                                 });
-                              }
-                          });
-                          c.train(bookmark.title, klass);
-                          var save = c.to_object();
-                          save.cache = storage.cache;
-                          if (!bookmark.hasOwnProperty('url'))
-                              save.cache[id] = bookmark.title.trim();
-                          chrome.storage.local.set(save, function(){});
-                       });
-                 }
-          });
+        findKlass(bookmark, function(train, klass, klass_id){
+             if (train){
+                  // If possible (the user just hit the star button on a 
+                  // live page) we would like to train on the meta data
+                  // associated with the page as well (not just the title)
+                  chrome.tabs.query({url:bookmark.url}, function(tabs){
+                      if (tabs.length){
+                         var tab_id = tabs[0].id;
+                         chrome.tabs.sendMessage(tab.id,{}, function(response){
+                             // Now we have the additional info about the page
+                             var dokument = bookmark.title + response.meta;
+                             trainHelper(dokument, klass, klass_id);
+                         });
+                      }else{
+                          trainHelper(bookmark.title, klass, klass_id);
+                      }
+                  });
+             }
+        });
     }
-});
+ });
 
 // The api doesn't tell us the children of nodes that were deleted
 // would have to track this ourself. This does not seem worth it.
@@ -372,7 +386,7 @@ chrome.bookmarks.onRemoved.addListener(function(id, removeInfo) {
         chrome.bookmarks.get(removeInfo.parentId, function(parentNode){
             var cache = storage.cache;
             var c = new NaiveBayesClassifier(storage);
-            if (!cache[id]){
+            if (cache[id]){
                 var title = cache[id];
                 delete cache[id];
                 // If it's a class folder, remove the class from the classifier
@@ -406,16 +420,19 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
                   // untrain
                   findKlass(moveInfo.oldParentId, function(train, oldKlass){
                          if (train){
-                               // Don't do anything for empty folder names
-                               c.untrain(bookmark.title, oldKlass);
+                              // If we had trained on meta too we aren't tracking it
+                              // so we can't fully untrain on this, but we can do our best
+                              // TODO this may be bad because we are reversing some of the features
+                              // but fully decrementing the document count for this class
+                              c.untrain(bookmark.title, oldKlass);
                          }
                          // train, this has to come last so we only need to save once
                          findKlass(moveInfo.newParentId, function(train, newKlass){
-                                if (train){
-                                      // Don't do anything for empty folder names
-                                      c.train(bookmark.title, newKlass);
-                                }
-                                chrome.storage.local.set(c.to_object(), function(){});
+                              if (train){
+                                    // Don't do anything for empty folder names
+                                    c.train(bookmark.title, newKlass);
+                              }
+                              chrome.storage.local.set(c.to_object(), function(){});
                          });
                   });
              } else {
@@ -445,9 +462,10 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
                              if (typeof oldKlass === "undefined")
                                  cache[id] = node.title;
                              if (typeof oldKlass !== "undefined" && oldKlass !== "Uncategorized" && oldKlass.trim().length)
-                                 trainFolder(node, oldKlass, c, storage.cache, true);
-                             if (typeof newKlass !== "undefined" && newKlass !== "Uncategorized" && newKlass.trim().length)
+                                 c.delete_class(oldKlass);
+                             if (typeof newKlass !== "undefined" && newKlass !== "Uncategorized" && newKlass.trim().length){
                                  trainFolder(node, newKlass, c, storage.cache);
+                             }
                              var save = c.to_object();
                              save.cache = storage.cache;
                              chrome.storage.local.set(save, function(){});
@@ -472,7 +490,9 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
     }, function(storage){
         if (!c.hasOwnProperty('title')) {
             var c = new NaiveBayesClassifier(storage);
-            var old_title = storage.cache[id];
+            // We may not have the old title cached here if they created a root 
+            // folder, never added any children, and renamed it 
+            var old_title = storage.cache[id] || "";
             if (old_title === changeInfo.title) return;
             // This only matters if this folder is a klass folder
             chrome.bookmarks.get(id, function(results){
@@ -480,10 +500,10 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
                     if (!klassNode) return;
                     node = results[0];
                     if (old_title === "Uncategorized" || old_title.trim().length === 0) {
-                        // No retraining, things in an uncategorized folder do not get trained
+                        // No untraining, things in an uncategorized never got trained
                         if (changeInfo.title.trim().length)
                            trainFolder(node, changeInfo.title, c, storage.cache);
-                    }else if (changeInfo.title === "Uncategorized" || old_title.trim().length === 0){
+                    }else if (changeInfo.title === "Uncategorized" || changeInfo.title.trim().length === 0){
                         // Changed title to Uncategorized, just untrain on old folder
                         if (old_title.trim().length)
                            trainFolder(node, old_title, c, storage.cache, true);
