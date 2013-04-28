@@ -11,8 +11,7 @@
     "tabs", "http://*/*","https://*/*", "bookmarks", "storage"
   ],
   "background": {
-      "scripts": ["coffee-classifier/Porter-Stemmer/PorterStemmer1980.min.js",
-                  "naivebayes.js", "eventPage.js"],
+      "scripts": ["naivebayes.nodep.min.js", "eventPage.js"],
       "persistent": false
   }
 }
