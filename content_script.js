@@ -2,6 +2,7 @@
     var metaTags = document.getElementsByTagName("meta"),
         response = {}, metaKey, metaTag, keywordKey;
     
+    response.description = response.keywords = "";
     for (metaKey in metaTags){
         metaTag = metaTags[metaKey];
         if (metaTag.name && metaTag.name.toLowerCase() == "description"){

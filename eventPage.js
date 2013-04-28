@@ -226,7 +226,7 @@ function determineBestFolder(page, resp, folders, callback){
         "klass_count":{}
     }, function(storage){
         var c = new NaiveBayesClassifier(storage);
-        callback(c.classify(createDocument(page.title.topLevelFolders(), response)));
+        callback(c.classify(createDocument(page.title.toLowerCase(), resp)));
     });
 }
 
@@ -390,7 +390,7 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
                   chrome.tabs.query({url:bookmark.url}, function(tabs){
                       if (tabs.length){
                          var tab_id = tabs[0].id;
-                         chrome.tabs.sendMessage(tab.id,{}, function(response){
+                         chrome.tabs.sendMessage(tab_id,{}, function(response){
                              // Now we have the additional info about the page
                              var dokument = createDocument(bookmark.title.toLowerCase(),  response);
                              trainHelper(dokument, klass, klass_id);
