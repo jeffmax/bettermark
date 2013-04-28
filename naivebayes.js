@@ -52,8 +52,6 @@ Classifier = function() {
     };
     Classifier.prototype.train = function(dokument, klass) {
         var feature, features, record, _i, _len;
-        console.log(this.feature_count);
-        console.log(this.klass_count);
         features = this.get_features(dokument);
         for (_i = 0, _len = features.length; _i < _len; _i++) {
             feature = features[_i];
