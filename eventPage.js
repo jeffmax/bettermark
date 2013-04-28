@@ -48,6 +48,37 @@ chrome.extension.onMessage.addListener(
      });
 });
 
+// Given a string and a length, return the string at that length or shorter broken at the last
+// full word
+function trimDocument(dokument, length){
+    var d, i;
+    if (!dokument)
+        return dokument;
+    if (dokument && dokument.length <= length)
+        return dokument;
+
+    d = dokument.substring(0, length);
+    if (/\W/.test(dokument[length]) || /\W/.test(dokument[length-1])){
+        return d;
+    }
+
+    d = d.split(/\W/);
+    if (d.length === 1){
+        return d[0];
+    }
+    i =  d.slice(0, d.length-1).join(" ").length;
+    return dokument.substring(0, i);
+}
+
+// Convenience function to create string from a response object that 
+// contains a title, meta and description string
+function createDocument(title, response){
+    if (response.description.length)
+       return trimDocument(title + " " + response.description + " " + response.meta, 250);
+    return trimDocument(title + " " + response.meta, 250);
+}
+
+
 // Repeat string function from http://stackoverflow.com/questions/202605/repeat-string-javascript
 function repeat(pattern, count) {
     if (count < 1) return '';
@@ -175,7 +206,7 @@ function populateInterface(folderID, otherFolders, bookmark){
     });
 }
 
-function determineBestFolder(page, meta, folders, callback){
+function determineBestFolder(page, resp, folders, callback){
     if (!page.title || page.title.trim().length === 0){
         callback("Uncategorized");
         return;
@@ -195,7 +226,7 @@ function determineBestFolder(page, meta, folders, callback){
         "klass_count":{}
     }, function(storage){
         var c = new NaiveBayesClassifier(storage);
-        callback(c.classify(page.title + " " + meta.keywords.join(" ")));
+        callback(c.classify(createDocument(page.title.topLevelFolders(), response)));
     });
 }
 
@@ -361,11 +392,11 @@ chrome.bookmarks.onCreated.addListener(function(id, bookmark) {
                          var tab_id = tabs[0].id;
                          chrome.tabs.sendMessage(tab.id,{}, function(response){
                              // Now we have the additional info about the page
-                             var dokument = bookmark.title + response.keywords.join(" ");
+                             var dokument = createDocument(bookmark.title.toLowerCase(),  response);
                              trainHelper(dokument, klass, klass_id);
                          });
                       }else{
-                          trainHelper(bookmark.title, klass, klass_id);
+                          trainHelper(bookmark.title.toLowerCase(), klass, klass_id);
                       }
                   });
              }
