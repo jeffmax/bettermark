@@ -162,6 +162,33 @@ function populateInterface(folderID, otherFolders, bookmark){
     var pop_doc = views[0].document;
     var title_input = pop_doc.getElementById("bookmark_title");
     var folder_input =  pop_doc.getElementById("bookmark_folders");
+    var chevron = pop_doc.getElementById("expand");
+    var create_folder_btn = pop_doc.getElementById("create_folder");
+    var create_folder_txt = pop_doc.getElementById("folder_name");
+
+    chevron.addEventListener("click", function(event) { 
+        if (chevron.className === "icon-chevron-right"){
+            chevron.className = "icon-chevron-down";
+            create_folder_btn.style.display = "block";
+            create_folder_txt.style.display = "block";
+        }else{
+            chevron.className = "icon-chevron-right";
+            create_folder_btn.style.display = "none";
+            create_folder_txt.style.display = "none";
+        }
+    });
+    
+    create_folder_btn.addEventListener("click", function(){
+        var folder_name = create_folder_txt.value;
+        if (folder_name.trim().length)
+        {
+            chrome.bookmarks.create({title:folder_name.trim()}, function(node){
+                chrome.bookmarks.move(bookmark.id, {parentId:node.id});
+                window.close();
+            });
+        } 
+    });
+
     title_input.value = bookmark.title;
     
     title_input.addEventListener("keyup", function(event) {

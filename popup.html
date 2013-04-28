@@ -1,7 +1,8 @@
 <!doctype html>
 <html>
   <head>
-    <title>AddBookmark</title>
+     <link rel="stylesheet" href="./font-awesome.min.css">
+     <title>AddBookmark</title>
     <style>
       body {
         min-width:357px;
@@ -27,6 +28,11 @@
     <div style="clear:both;"></div>
     <input type="button" id ="remove" value="Remove"/>
     <input type="button" id ="done" style="float:right;" value="Done"/>
+    <div style="clear:both;"></div>
+    <label>Advanced..   </label><i style="cursor:pointer;" id=expand class="icon-chevron-right"></i><br>
+
+    <input type=text id=folder_name value="" style="display:none" size=50 placeholder="Folder to create in 'Other Bookmarks'">
+    <input type=button id=create_folder style="display:none;" value="Create and save bookmark">
     <script src="popup.js"></script>
   </body>
 </html>
