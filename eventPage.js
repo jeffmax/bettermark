@@ -243,10 +243,22 @@ function determineBestFolder(page, resp, folders, callback){
     var folder = null;
     // Odd results if folder name is all spaces
     folders = folders.filter(function(folder){
-        if (folder.title.trim()) return true;
-        callback("Uncategorized");
-        return;
+        if (folder.title.trim().length) return true;
+        return false;
     });
+
+    folders.forEach(function(currentFolder){
+        var regex = new RegExp("\\b"+currentFolder.title+"\\b","i");
+        if (regex.test(page.title)){
+           folder = currentFolder;
+           return false;
+        }
+    });
+
+    if (folder) {
+        callback(folder.title);
+        return;
+    }
 
     chrome.storage.local.get({
         "feature_count":{},
