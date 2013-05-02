@@ -314,7 +314,7 @@ function findKlass(node, callback, descendant) {
               callback(false, undefined);
               return;
           }
-          callback(descendant.title !== "Uncategorized" && descendant.title.trim().length,
+          callback(descendant.title !== "Uncategorized" && descendant.title.trim().length !==0,
                    descendant.title.trim(), descendant.id);
           return;
      }
@@ -482,7 +482,8 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
         "cache": {}
     }, function(storage){
         var c = new NaiveBayesClassifier(storage);
-        chrome.bookmarks.get(id, function(bookmark) {
+        chrome.bookmarks.get(id, function(bookmarks) {
+             var bookmark = bookmarks[0];
              // It moved, but does it matter?
              if (bookmark.parentId === moveInfo.oldParentId) return;
              // Is this a bookmark or a folder that was moved
@@ -499,7 +500,7 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
                               c.untrain(bookmark.title, oldKlass);
                          }
                          // train, this has to come last so we only need to save once
-                         findKlass(moveInfo.newParentId, function(train, newKlass){
+                         findKlass(moveInfo.parentId, function(train, newKlass){
                               if (train){
                                     // Don't do anything for empty folder names
                                     c.train(bookmark.title, newKlass);
@@ -508,40 +509,46 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
                          });
                   });
              } else {
-                 chrome.bookmarks.get([id, moveInfo.oldParentId], function(results){
-                     var node = results[0], 
-                         oldParent = results[1],
-                         wasAKlass = false;
-                     if (oldParent.parentId === "0" && oldParent.title === "Other Bookmarks"){
-                         wasAKlass = true;
-                     }
-                     findKlass(oldParent, function(untrain, oldKlass){
-                         // if the node was a root node than we can't use its oldParent's klass
-                         // as the old klass because it would have had no klass
-                         if (wasAKlass)
-                             oldKlass = node.title;
-                         findKlass(node, function(train, newKlass){
-                             // Note it really doesn't matter if we were a root node before or are one now
-                             // As long as we get the old and new klass designations right, that will take
-                             // care of itself
-                             if (oldKlass === newKlass){
-                                 // Either folder was outside "Other Bookmarks" folder and still is
-                                 // or the klass did not change during the move
-                                 return;
-                             }
-                             // if this was a folder that was moved from outside "Other bookmarks"
-                             // we need to cache it's title, because that may not have happened previously
-                             if (typeof oldKlass === "undefined")
-                                 cache[id] = node.title;
-                             if (typeof oldKlass !== "undefined" && oldKlass !== "Uncategorized" && oldKlass.trim().length)
-                                 c.delete_class(oldKlass);
-                             if (typeof newKlass !== "undefined" && newKlass !== "Uncategorized" && newKlass.trim().length){
-                                 trainFolder(node, newKlass, c, storage.cache);
-                             }
-                             var save = c.to_object();
-                             save.cache = storage.cache;
-                             chrome.storage.local.set(save, function(){});
-                         });
+                 chrome.bookmarks.getSubTree(id, function(results){
+                     var node = results[0];
+                     chrome.bookmarks.getSubTree(moveInfo.oldParentId, function(results){
+                          var oldParent = results[0];
+                          var wasAKlass = false;
+                          if (oldParent.parentId === "0" && oldParent.title === "Other Bookmarks"){
+                              wasAKlass = true;
+                          }
+                          findKlass(oldParent, function(untrain, oldKlass){
+                              // if the node was a root node than we can't use its oldParent's klass
+                              // as the old klass because it would have had no klass
+                              if (wasAKlass)
+                                  oldKlass = node.title;
+                              findKlass(node, function(train, newKlass){
+                                  // Note it really doesn't matter if we were a root node before or are one now
+                                  // As long as we get the old and new klass designations right, that will take
+                                  // care of itself
+                                  if (oldKlass === newKlass){
+                                      // Either folder was outside "Other Bookmarks" folder and still is
+                                      // or the klass did not change during the move
+                                      return;
+                                  }
+                                  // if this was a folder that was moved from outside "Other bookmarks"
+                                  // we need to cache it's title, because that may not have happened previously
+                                  if (typeof oldKlass === "undefined")
+                                      cache[id] = node.title;
+                                  if (typeof oldKlass !== "undefined" && oldKlass !== "Uncategorized" && oldKlass.trim().length){
+                                      c.delete_class(oldKlass);
+                                      // If we weren't a top level class before, then retrain the oldKlass sans the moved folder
+                                      if (!wasAKlass)
+                                         trainFolder(oldParent, oldKlass, c, storage.cache);
+                                  }
+                                  if (typeof newKlass !== "undefined" && newKlass !== "Uncategorized" && newKlass.trim().length){
+                                      trainFolder(node, newKlass, c, storage.cache);
+                                  }
+                                  var save = c.to_object();
+                                  save.cache = storage.cache;
+                                  chrome.storage.local.set(save, function(){});
+                              });
+                          });
                      });
                 });
              }
@@ -567,10 +574,10 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
             var old_title = storage.cache[id] || "";
             if (old_title === changeInfo.title) return;
             // This only matters if this folder is a klass folder
-            chrome.bookmarks.get(id, function(results){
-                isKlassNode(results[0], function(klassNode){
+            chrome.bookmarks.getSubTree(id, function(results){
+                var node = results[0];
+                isKlassNode(node, function(klassNode){
                     if (!klassNode) return;
-                    node = results[0];
                     if (old_title === "Uncategorized" || old_title.trim().length === 0) {
                         // No untraining, things in an uncategorized never got trained
                         if (changeInfo.title.trim().length)
