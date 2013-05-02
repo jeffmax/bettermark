@@ -169,8 +169,8 @@ function populateInterface(folderID, otherFolders, bookmark){
     chevron.addEventListener("click", function(event) { 
         if (chevron.className === "icon-chevron-right"){
             chevron.className = "icon-chevron-down";
-            create_folder_btn.style.display = "block";
-            create_folder_txt.style.display = "block";
+            create_folder_btn.style.display = "inline";
+            create_folder_txt.style.display = "inline";
         }else{
             chevron.className = "icon-chevron-right";
             create_folder_btn.style.display = "none";
@@ -238,34 +238,37 @@ function determineBestFolder(page, resp, folders, callback){
         callback("Uncategorized");
         return;
     }
-    // First check to see if the title of the page contains
-    // the name of the folder
-    var folder = null;
-    // Odd results if folder name is all spaces
-    folders = folders.filter(function(folder){
-        if (folder.title.trim().length) return true;
-        return false;
-    });
-
-    folders.forEach(function(currentFolder){
-        var regex = new RegExp("\\b"+currentFolder.title+"\\b","i");
-        if (regex.test(page.title)){
-           folder = currentFolder;
-           return false;
-        }
-    });
-
-    if (folder) {
-        callback(folder.title);
-        return;
-    }
 
     chrome.storage.local.get({
         "feature_count":{},
         "klass_count":{}
     }, function(storage){
-        var c = new NaiveBayesClassifier(storage);
-        callback(c.classify(createDocument(page.title.toLowerCase(), resp)));
+        var c = new NaiveBayesClassifier(storage), folder = null,  klass;
+        klass =  c.classify(createDocument(page.title.toLowerCase(), resp));
+
+        if (klass !== "Uncategorized")
+            callback(klass);
+
+        // if we weren't able to categorize, try the folder names
+        // the name of the folder
+        // Odd results if folder name is all spaces
+        folders = folders.filter(function(folder){
+            if (folder.title.trim().length) return true;
+            return false;
+        });
+
+        folders.forEach(function(currentFolder){
+            var regex = new RegExp("\\b"+currentFolder.title+"\\b","i");
+            if (regex.test(page.title)){
+               folder = currentFolder;
+               return false;
+            }
+        });
+
+        if (folder)
+            callback(folder.title);
+        else
+            callback(klass);
     });
 }
 

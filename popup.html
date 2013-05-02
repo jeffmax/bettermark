@@ -21,18 +21,19 @@
     </style>
   </head>
   <body>
-    <p id="title">Bookmark</p>
-    <label for="bookmark_name">Name:</label> <input id="bookmark_title" type="text" name="bookmark_name" size="40"/><br>
-    <label for="bookmark_folders">Folder:</label> <select id="bookmark_folders" type="select" name="bookmark_folder"></select> 
-    <input type="button" id="last_folder" style="float:right" value="Last used folder"/>
-    <div style="clear:both;"></div>
+    <p id="title">Bettermark</p>
+    <label for="bookmark_name">Name:</label> <input id="bookmark_title" type="text" name="bookmark_name" size="56"/><br>
+    <div style="padding-top:3px;clear:both;"></div>
+    <label for="bookmark_folders">Folder:</label> <select style="width:28em;" id="bookmark_folders" type="select" name="bookmark_folder"></select>
+    <div style="padding-top:3px;clear:both;"></div>
     <input type="button" id ="remove" value="Remove"/>
     <input type="button" id ="done" style="float:right;" value="Done"/>
-    <div style="clear:both;"></div>
-    <label>Advanced..   </label><i style="cursor:pointer;" id=expand class="icon-chevron-right"></i><br>
-
-    <input type=text id=folder_name value="" style="display:none" size=50 placeholder="Folder to create in 'Other Bookmarks'">
-    <input type=button id=create_folder style="display:none;" value="Create and save bookmark">
+    <input type="button" id="last_folder" style="float:right" value="Last used folder"/>
+    <div style="padding-top:5px;clear:both;"></div>
+    <label>Advanced..  <i style="cursor:pointer;" id=expand class="icon-chevron-right"></i></label><br>
+    <div style="padding-top:3px;"></div>
+    <input type=text id=folder_name value="" style="display:none" size=50 placeholder="New folder for bookmark">
+    <input type=button id=create_folder style="display:none;float:right;" value="Create">
     <script src="popup.js"></script>
   </body>
 </html>
