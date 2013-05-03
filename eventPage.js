@@ -326,7 +326,7 @@ function findKlass(node, callback, descendant) {
 function isKlassNode(node, callback){
      chrome.bookmarks.get(node.parentId, function(results){
          var parent = results[0];
-         if (!node.hasOwnProperty("url") && parent.parentId == "0" && parentNode.title == "Other Bookmarks")
+         if (!node.hasOwnProperty("url") && parent.parentId === "0" && parent.title === "Other Bookmarks")
              callback(true);
          else
              callback(false);
@@ -490,23 +490,25 @@ chrome.bookmarks.onMoved.addListener(function(id, moveInfo) {
              if (bookmark.hasOwnProperty("url")) {
                   // can't train a bookmark with no title
                   if (!bookmark.title || !bookmark.title.trim()) return;
-                  // untrain
-                  findKlass(moveInfo.oldParentId, function(train, oldKlass){
-                         if (train){
-                              // If we had trained on meta too we aren't tracking it
-                              // so we can't fully untrain on this, but we can do our best
-                              // TODO this may be bad because we are reversing some of the features
-                              // but fully decrementing the document count for this class
-                              c.untrain(bookmark.title, oldKlass);
-                         }
-                         // train, this has to come last so we only need to save once
-                         findKlass(moveInfo.parentId, function(train, newKlass){
-                              if (train){
-                                    // Don't do anything for empty folder names
-                                    c.train(bookmark.title, newKlass);
-                              }
-                              chrome.storage.local.set(c.to_object(), function(){});
-                         });
+                  chrome.bookmarks.get([moveInfo.parentId, moveInfo.oldParentId], function(results){
+                      var parent = results[0], oldParent = results[1];
+                      findKlass(oldParent, function(train, oldKlass){
+                             if (train){
+                                  // If we had trained on meta too we aren't tracking it
+                                  // so we can't fully untrain on this, but we can do our best
+                                  // TODO this may be bad because we are reversing some of the features
+                                  // but fully decrementing the document count for this class
+                                  c.untrain(bookmark.title, oldKlass);
+                             }
+                             // train, this has to come last so we only need to save once
+                             findKlass(parent, function(train, newKlass){
+                                  if (train){
+                                        // Don't do anything for empty folder names
+                                        c.train(bookmark.title, newKlass);
+                                  }
+                                  chrome.storage.local.set(c.to_object(), function(){});
+                             });
+                      });
                   });
              } else {
                  chrome.bookmarks.getSubTree(id, function(results){
@@ -567,7 +569,8 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
         "klass_count":{},
         "cache":{}
     }, function(storage){
-        if (!c.hasOwnProperty('title')) {
+        debugger;
+        if (!changeInfo.hasOwnProperty('url')) {
             var c = new NaiveBayesClassifier(storage);
             // We may not have the old title cached here if they created a root 
             // folder, never added any children, and renamed it 
