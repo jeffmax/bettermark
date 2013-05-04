@@ -5,10 +5,10 @@
     response.description = response.keywords = "";
     for (metaKey in metaTags){
         metaTag = metaTags[metaKey];
-        if (metaTag.name && metaTag.name.toLowerCase() == "description"){
+        if (metaTag.name && metaTag.name.toLowerCase() === "description"){
             response.description = metaTag.content.toLowerCase();
         }
-        if (metaTag.name && metaTag.name.toLowerCase() == "keywords"){
+        if (metaTag.name && metaTag.name.toLowerCase() === "keywords"){
             response.keywords = metaTag.content.toLowerCase();
         }
     }
@@ -16,8 +16,8 @@
     chrome.runtime.sendMessage(response, function() {
     });
     
-    // Also responde with this message
-    chrome.runtime.onMessage.addListener(function(){
+    // Also responded with this message
+    chrome.runtime.onMessage.addListener(function(request, sender, callback){
         callback(response);
     });
 }();

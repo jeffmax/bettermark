@@ -73,9 +73,9 @@ function trimDocument(dokument, length){
 // Convenience function to create string from a response object that 
 // contains a title, meta and description string
 function createDocument(title, response){
-    if (response.description.length)
-       return trimDocument(title + " " + response.description + " " + response.meta, 250);
-    return trimDocument(title + " " + response.meta, 250);
+    if (response.description && response.description.length)
+       return trimDocument(title + " " + response.description + " " + response.keywords || "", 250);
+    return trimDocument(title + " " + response.keywords || "", 250);
 }
 
 
