@@ -1,6 +1,6 @@
 !function(){
     var metaTags = document.getElementsByTagName("meta"),
-        response = {}, metaKey, metaTag, keywordKey;
+        response = {}, metaKey, metaTag;
     
     response.description = response.keywords = "";
     for (metaKey in metaTags){
@@ -13,11 +13,11 @@
         }
     }
     
-    chrome.runtime.sendMessage(response, function(response) {
+    chrome.runtime.sendMessage(response, function() {
     });
     
     // Also responde with this message
-    chrome.runtime.onMessage.addListener(function(request, sender, callback){
+    chrome.runtime.onMessage.addListener(function(){
         callback(response);
     });
 }();

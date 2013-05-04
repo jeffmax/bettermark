@@ -1,5 +1,5 @@
 chrome.extension.onMessage.addListener(
-    function(request, sender, sendResponse) {
+    function(request, sender) {
       getTopLevelBookmarkNode("Other Bookmarks", function(otherNode){
           if (other === null) {
               console.error("'Other Bookmarks' not found."); 
@@ -24,7 +24,7 @@ chrome.extension.onMessage.addListener(
                   populateInterface(bookmarkFolderID, flattenedFolders, bookmark);
                   return;
               }
-              var folder = determineBestFolder(sender.tab, request, folders, function(folderName){
+              determineBestFolder(sender.tab, request, folders, function(folderName){
                   if (folderName === "Uncategorized"){
                       // Find the uncategorized folder and create bookmark there
                       getFolder(folderName, other, otherID, true, function(uncategorized){
@@ -165,7 +165,7 @@ function populateInterface(folderID, otherFolders, bookmark){
     var chevron = pop_doc.getElementById("expand");
     var create_folder_btn = pop_doc.getElementById("create_folder");
     var create_folder_txt = pop_doc.getElementById("folder_name");
-    chevron.addEventListener("click", function(event) { 
+    chevron.addEventListener("click", function() { 
         if (chevron.className === "icon-chevron-right"){
             chevron.className = "icon-chevron-down";
             create_folder_btn.style.display = "inline";
@@ -190,7 +190,7 @@ function populateInterface(folderID, otherFolders, bookmark){
 
     title_input.value = bookmark.title;
     
-    title_input.addEventListener("keyup", function(event) {
+    title_input.addEventListener("keyup", function() {
         chrome.bookmarks.update(bookmark.id, {title: title_input.value}, function(){});
     });
     
@@ -226,7 +226,7 @@ function populateInterface(folderID, otherFolders, bookmark){
             }
         });
         // Setup change handler
-        folder_input.addEventListener("change", function(event) {
+        folder_input.addEventListener("change", function() {
            chrome.bookmarks.move(bookmark.id, {parentId: folder_input.selectedOptions[0].value}, function(){});
         });
     });

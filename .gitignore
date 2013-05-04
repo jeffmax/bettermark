@@ -1,1 +1,11 @@
-naivebayes.nodep.min.js
+*.DS_Store
+*.sw?
+.sass-cache
+.watch-pid
+*.nodep.min.js
+*.nodep.js
+src/js/
+node_modules/
+.grunt/
+_SpecRunner.html
+dist/
