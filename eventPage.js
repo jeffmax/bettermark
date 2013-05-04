@@ -25,7 +25,7 @@ chrome.extension.onMessage.addListener(
                   return;
               }
               var folder = determineBestFolder(sender.tab, request, folders, function(folderName){
-                  if (folderName == "Uncategorized"){
+                  if (folderName === "Uncategorized"){
                       // Find the uncategorized folder and create bookmark there
                       getFolder(folderName, other, otherID, true, function(uncategorized){
                           chrome.bookmarks.create({'parentId': uncategorized.id,
@@ -165,7 +165,6 @@ function populateInterface(folderID, otherFolders, bookmark){
     var chevron = pop_doc.getElementById("expand");
     var create_folder_btn = pop_doc.getElementById("create_folder");
     var create_folder_txt = pop_doc.getElementById("folder_name");
-
     chevron.addEventListener("click", function(event) { 
         if (chevron.className === "icon-chevron-right"){
             chevron.className = "icon-chevron-down";
@@ -246,8 +245,10 @@ function determineBestFolder(page, resp, folders, callback){
         var c = new NaiveBayesClassifier(storage), folder = null,  klass;
         klass =  c.classify(createDocument(page.title.toLowerCase(), resp));
 
-        if (klass !== "Uncategorized")
+        if (klass !== "Uncategorized"){
             callback(klass);
+            return;
+        }
 
         // if we weren't able to categorize, try the folder names
         // the name of the folder
