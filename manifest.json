@@ -1,6 +1,6 @@
 {
-  "name": "AddBookmark",
-  "version": "0.1",
+  "name": "Bettermark",
+  "version": "0.01",
   "manifest_version": 2,
   "icons": { "16": "icon16.png",
              "48": "icon48.png",
