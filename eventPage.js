@@ -570,7 +570,6 @@ chrome.bookmarks.onChanged.addListener(function(id, changeInfo) {
         "klass_count":{},
         "cache":{}
     }, function(storage){
-        debugger;
         if (!changeInfo.hasOwnProperty('url')) {
             var c = new NaiveBayesClassifier(storage);
             // We may not have the old title cached here if they created a root 
