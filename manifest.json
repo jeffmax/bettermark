@@ -17,7 +17,7 @@
     "tabs", "http://*/*","https://*/*", "bookmarks", "storage"
   ],
   "background": {
-      "scripts": ["naivebayes.nodep.js", "eventPage.js"],
+      "scripts": ["naivebayes.nodep.min.js", "eventPage.js"],
       "persistent": false
   }
 }
